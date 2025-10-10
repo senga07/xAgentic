@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xagentic-backend"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi[standard]>=0.117.1",
+    "langgraph>=0.6.7",
+    "uvicorn>=0.37.0",
+    "openai>=1.0.0",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "python-multipart>=0.0.6",
+    "langsmith>=0.4.31",
+    "langchain-community>=0.3.30",
+    "colorama>=0.4.6",
+    "langchain-mcp-adapters>=0.1.0",
+    "langchain-core>=0.3.76",
+    "docker>=7.1.0",
+    "langchain-sandbox>=0.0.6",
+    "dashscope>=1.24.6",
+    "langchain-tavily>=0.2.11",
+    "langmem>=0.0.29",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["api*", "cfg*", "graph*", "llm_provider*", "mcp_*", "memory*", "prompt*", "services*", "tools*", "utils*"]
+exclude = ["logs*", "node_modules*", "__pycache__*", "*.pyc"]

@@ -1,0 +1,2092 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>xAgentic Planning Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 95%;
+            max-width: 1000px;
+            height: 90vh;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            position: relative;
+        }
+
+        .chat-header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .chat-header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .status-indicator {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4caf50;
+        }
+
+        .status-indicator.error {
+            background: #f44336;
+        }
+
+        .status-indicator.thinking {
+            background: #ff9800;
+            animation: pulse 1.5s infinite;
+        }
+
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #f8f9fa;
+        }
+
+        .planning-panel {
+            width: 350px;
+            background: #f8f9fa;
+            border-left: 1px solid #e1e5e9;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .planning-header {
+            background: #e1e5e9;
+            padding: 15px;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 1px solid #d1d5db;
+        }
+
+        .planning-content {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .message.user {
+            justify-content: flex-end;
+        }
+
+        .message.ai {
+            justify-content: flex-start;
+        }
+
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            line-height: 1.4;
+        }
+
+        .message.user .message-content {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 5px;
+        }
+
+        .message.ai .message-content {
+            background: white;
+            color: #333;
+            border: 1px solid #e1e5e9;
+            border-bottom-left-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .message-content pre {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            overflow-x: auto;
+            margin: 8px 0;
+            border: 1px solid #e1e5e9;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+        
+        .message-content code {
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            color: #d63384;
+        }
+        
+        .message-content strong {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .message-content em {
+            font-style: italic;
+            color: #666;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin: 0 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .message.user .message-avatar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            order: 2;
+        }
+
+        .message.ai .message-avatar {
+            background: #e1e5e9;
+            color: #666;
+        }
+
+        .planning-step {
+            margin-bottom: 15px;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 4px solid #e1e5e9;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        .planning-step.active {
+            border-left-color: #ff9800;
+            background: #fff3e0;
+        }
+
+        .planning-step.completed {
+            border-left-color: #4caf50;
+            background: #e8f5e8;
+        }
+
+        .planning-step.failed {
+            border-left-color: #f44336;
+            background: #ffebee;
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .step-number {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #e1e5e9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .step-number.active {
+            background: #ff9800;
+            color: white;
+        }
+
+        .step-number.completed {
+            background: #4caf50;
+            color: white;
+        }
+
+        .step-number.failed {
+            background: #f44336;
+            color: white;
+        }
+
+        .step-title {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .step-description {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .step-result {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #555;
+            margin-top: 8px;
+            border: 1px solid #e1e5e9;
+            transition: all 0.3s ease;
+        }
+        
+        .step-result:hover {
+            background: #f0f4f8;
+            border-color: #667eea;
+        }
+        
+        .step-result pre {
+            background: #f5f5f5;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 4px 0;
+            border: 1px solid #e1e5e9;
+        }
+        
+        .step-result code {
+            background: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+        }
+
+        .timing-display {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 6px;
+            padding: 12px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .timing-header {
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .timing-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .timing-stat {
+            background: white;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+            border: 1px solid #e1e5e9;
+        }
+
+        .timing-stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .timing-stat-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1976d2;
+        }
+
+        .step-timing {
+            background: #f0f4f8;
+            border-left: 3px solid #2196f3;
+            padding: 6px 10px;
+            margin-top: 6px;
+            font-size: 12px;
+            color: #1976d2;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .phase-timing {
+            background: #fff3e0;
+            border-left: 3px solid #ff9800;
+            padding: 6px 10px;
+            margin: 6px 0;
+            font-size: 12px;
+            color: #f57c00;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .status-message {
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background: #e3f2fd;
+            color: #1976d2;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-message.thinking {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .status-message.success {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .status-message.error {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .status-message.timing {
+            background: #e3f2fd;
+            color: #1976d2;
+            border-left: 3px solid #2196f3;
+        }
+
+        .chat-input {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e1e5e9;
+            position: relative;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 25px;
+            outline: none;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .message-input:focus {
+            border-color: #667eea;
+        }
+
+        .send-button {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: transform 0.2s;
+        }
+
+        .send-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .send-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .loading.show {
+            display: flex;
+        }
+
+        .loading-dots {
+            display: inline-block;
+        }
+
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: #666;
+            margin: 40px 0;
+        }
+
+        .welcome-message h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .planning-summary {
+            background: #f0f4f8;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .planning-summary h4 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .planning-summary p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        /* MCP配置面板样式 */
+        .config-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .config-overlay.show {
+            display: flex;
+        }
+
+        .config-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .config-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+
+        .close-button:hover {
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .config-section {
+            margin-bottom: 24px;
+        }
+
+        .config-section h3 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        .mcp-server {
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            background: #f8f9fa;
+        }
+
+        .mcp-server-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .mcp-server-title {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .remove-server-btn {
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .add-server-btn {
+            background: #4caf50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .add-server-btn:hover {
+            background: #45a049;
+        }
+
+        .config-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a6fd8;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        /* 工具条样式 */
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 12px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e1e5e9;
+            overflow-x: auto;
+            align-items: center;
+        }
+
+        .tool-btn {
+            background: white;
+            border: 1px solid #e1e5e9;
+            border-radius: 6px;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 36px;
+            height: 36px;
+        }
+
+        .tool-btn:hover {
+            background: #f0f4f8;
+            border-color: #667eea;
+            transform: translateY(-1px);
+        }
+
+        .tool-btn.mcp-tool {
+            background: #667eea;
+            border-color: #667eea;
+            color: white;
+        }
+
+        .tool-btn.mcp-tool:hover {
+            background: #5a6fd8;
+            border-color: #5a6fd8;
+        }
+
+        .tool-icon {
+            font-size: 16px;
+            line-height: 1;
+        }
+
+        /* MCP面板样式 - 从输入框上方上拉弹出 */
+        .mcp-overlay {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 0;
+            background: rgba(0, 0, 0, 0.3);
+            display: none;
+            z-index: 1000;
+            transition: height 0.3s ease;
+        }
+
+        .mcp-overlay.show {
+            display: block;
+            height: 100%;
+        }
+
+        .mcp-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: white;
+            border-radius: 20px 20px 0 0;
+            padding: 24px;
+            max-height: 60vh;
+            overflow: hidden;
+            box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
+            transform: translateY(100%);
+            transition: transform 0.3s ease;
+        }
+
+        .mcp-overlay.show .mcp-panel {
+            transform: translateY(0);
+        }
+
+        .mcp-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .mcp-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .mcp-content {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .mcp-servers-list {
+            margin-bottom: 20px;
+        }
+
+        .mcp-server-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .mcp-server-item:hover {
+            background: #f0f4f8;
+            border-color: #667eea;
+        }
+
+        .server-info {
+            flex: 1;
+        }
+
+        .server-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .server-type {
+            font-size: 12px;
+            color: #666;
+            background: #e1e5e9;
+            padding: 2px 8px;
+            border-radius: 12px;
+            display: inline-block;
+        }
+
+        .server-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .server-action-btn {
+            background: none;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .edit-btn {
+            color: #667eea;
+        }
+
+        .edit-btn:hover {
+            background: #f0f4f8;
+        }
+
+        .delete-btn {
+            color: #f44336;
+        }
+
+        .delete-btn:hover {
+            background: #ffebee;
+        }
+
+        .add-server-section {
+            text-align: center;
+            padding-top: 20px;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .add-server-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .add-server-btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-1px);
+        }
+
+        .add-icon {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+
+
+
+        /* 执行进度指示器样式 */
+        .execution-progress {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #1976d2;
+        }
+
+        .progress-text {
+            font-size: 14px;
+            color: #1976d2;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e1e5e9;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2196f3, #21cbf3);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        /* MCP配置面板样式 */
+        .mcp-config-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+        }
+
+        .mcp-config-overlay.show {
+            display: flex;
+        }
+
+        .mcp-config-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .mcp-config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .mcp-config-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+
+        .mcp-config-content {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .config-form {
+            margin-bottom: 20px;
+        }
+
+        .mcp-json-textarea {
+            width: 100%;
+            min-height: 300px !important;
+            padding: 16px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            resize: vertical;
+        }
+
+        .mcp-json-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .planning-panel {
+                width: 100%;
+                height: 300px;
+                border-left: none;
+                border-top: 1px solid #e1e5e9;
+            }
+            
+            .chat-container {
+                width: 95%;
+                height: 95vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="status-indicator" id="statusIndicator"></div>
+            <h1>🧠 xAgentic Planning Chat</h1>
+            <p>智能任务规划与执行系统 - 实时展示思考过程</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message">
+                    <h3>👋 欢迎使用智能规划助手</h3>
+                    <p>输入您的任务，我将为您分析并制定详细的执行计划</p>
+                </div>
+            </div>
+            
+            <div class="planning-panel">
+                <div class="planning-header">
+                    📋 执行计划
+                </div>
+                <div class="planning-content" id="planningContent">
+                    <div class="planning-summary">
+                        <h4>💡 使用说明</h4>
+                        <p>输入复杂任务，系统将自动分析并制定执行计划，实时展示每个步骤的进展。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-input">
+            <div class="input-container">
+                <input 
+                    type="text" 
+                    id="messageInput" 
+                    class="message-input" 
+                    placeholder="输入您的任务"
+                    autocomplete="off"
+                >
+                <button id="sendButton" class="send-button">发送</button>
+            </div>
+            <div class="loading" id="loadingIndicator">
+                <span>AI正在思考</span>
+                <span class="loading-dots"></span>
+            </div>
+            
+            <!-- MCP服务列表面板 -->
+            <div class="mcp-overlay" id="mcpOverlay">
+                <div class="mcp-panel">
+                    <div class="mcp-header">
+                        <h2 class="mcp-title">🔨 MCP工具</h2>
+                        <button class="close-button" id="closeMcpBtn">&times;</button>
+                    </div>
+                    
+                    <div class="mcp-content">
+                        <div class="mcp-servers-list" id="mcpServersList">
+                            <!-- MCP服务器列表将在这里显示 -->
+                        </div>
+                        
+                        <div class="add-server-section">
+                            <button class="add-server-btn" id="addServerBtn">
+                                <span class="add-icon">+</span>
+                                添加服务...
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 工具条 -->
+        <div class="toolbar">
+            <button class="tool-btn mcp-tool" id="mcpToolBtn" title="MCP工具">
+                <span class="tool-icon">🔨</span>
+            </button>
+        </div>
+    </div>
+
+
+    <!-- MCP配置表单面板 -->
+    <div class="mcp-config-overlay" id="mcpConfigOverlay">
+        <div class="mcp-config-panel">
+            <div class="mcp-config-header">
+                <h2 class="mcp-config-title">🔧 配置MCP服务</h2>
+                <button class="close-button" id="closeConfigBtn">&times;</button>
+            </div>
+            
+            <div class="mcp-config-content">
+                <div class="config-form">
+                    <div class="form-group">
+                        <label for="mcpJsonConfig">MCP服务配置 (JSON格式):</label>
+                        <textarea 
+                            id="mcpJsonConfig" 
+                            class="mcp-json-textarea" 
+                            placeholder='请输入MCP服务的JSON配置，例如：
+{
+  "name": "文件系统工具",
+  "connection_type": "stdio",
+  "command": "npx",
+  "args": ["@modelcontextprotocol/server-filesystem", "/path/to/allowed/files"]
+}'
+                        ></textarea>
+                    </div>
+                    
+                    <div class="config-actions">
+                        <button class="btn btn-secondary" id="cancelConfigBtn">取消</button>
+                        <button class="btn btn-primary" id="saveConfigBtn">保存配置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class PlanningChatApp {
+            constructor() {
+                this.messageInput = document.getElementById('messageInput');
+                this.sendButton = document.getElementById('sendButton');
+                this.chatMessages = document.getElementById('chatMessages');
+                this.planningContent = document.getElementById('planningContent');
+                this.loadingIndicator = document.getElementById('loadingIndicator');
+                this.statusIndicator = document.getElementById('statusIndicator');
+                this.conversationHistory = [];
+                this.currentPlan = null;
+                this.isProcessing = false;
+                this.mcpConfigs = []; // 存储MCP配置
+                this.editingIndex = undefined; // 当前编辑的配置索引
+                this.timingInfo = {}; // 存储时间统计信息
+                this.processedSteps = new Set(); // 跟踪已处理的步骤，避免重复输出
+
+                this.init();
+            }
+            
+            init() {
+                this.sendButton.addEventListener('click', () => this.sendMessage());
+                this.messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.sendMessage();
+                    }
+                });
+                
+                // MCP工具相关事件监听器
+                document.getElementById('mcpToolBtn').addEventListener('click', () => this.showMCPPanel());
+                document.getElementById('closeMcpBtn').addEventListener('click', () => this.hideMCPPanel());
+                document.getElementById('addServerBtn').addEventListener('click', () => this.showConfigPanel());
+                
+                // MCP配置面板事件监听器
+                document.getElementById('closeConfigBtn').addEventListener('click', () => this.hideConfigPanel());
+                document.getElementById('cancelConfigBtn').addEventListener('click', () => this.hideConfigPanel());
+                document.getElementById('saveConfigBtn').addEventListener('click', () => this.saveMCPServer());
+
+                // 人工确认相关事件监听器将通过动态创建的元素来处理
+
+                // 点击遮罩层关闭面板
+                document.getElementById('mcpOverlay').addEventListener('click', (e) => {
+                    if (e.target.id === 'mcpOverlay') {
+                        this.hideMCPPanel();
+                    }
+                });
+                
+                document.getElementById('mcpConfigOverlay').addEventListener('click', (e) => {
+                    if (e.target.id === 'mcpConfigOverlay') {
+                        this.hideConfigPanel();
+                    }
+                });
+
+                this.checkBackendStatus();
+                this.loadMCPConfigs(); // 加载MCP配置
+            }
+            
+            async checkBackendStatus() {
+                try {
+                    const response = await fetch('/api/health');
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    this.statusIndicator.className = 'status-indicator';
+                } catch (error) {
+                    console.error('健康检查失败:', error);
+                    this.statusIndicator.className = 'status-indicator error';
+                }
+            }
+            
+            async sendMessage() {
+                const message = this.messageInput.value.trim();
+                if (!message || this.isProcessing) return;
+                
+                this.isProcessing = true;
+                
+                // 添加用户消息到界面
+                this.addMessage(message, 'user');
+                this.messageInput.value = '';
+                
+                // 显示加载状态
+                this.setLoading(true);
+                this.statusIndicator.className = 'status-indicator thinking';
+                
+                // 清空规划面板和时间统计
+                this.clearPlanningPanel();
+                this.timingInfo = {};
+                this.processedSteps.clear(); // 清除已处理步骤记录
+                
+                try {
+                    // 发送流式请求
+                    await this.sendStreamingRequest(message);
+                } catch (error) {
+                    console.error('发送消息失败:', error);
+                    this.addMessage(`抱歉，我遇到了一些问题：${error.message}`, 'ai');
+                    this.statusIndicator.className = 'status-indicator error';
+                } finally {
+                    this.setLoading(false);
+                    this.isProcessing = false;
+                }
+            }
+            
+            async sendStreamingRequest(message) {
+                const response = await fetch('/api/chat/stream', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        conversation_history: this.conversationHistory,
+                        mcp_configs: this.mcpConfigs
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                this.handleStreamingData(data);
+                            } catch (e) {
+                                console.error('解析流数据失败:', e);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            handleStreamingData(data) {
+                // 优先处理新格式的数据
+                if (data.type) {
+                    switch (data.type) {
+                        case 'streaming':
+                            this.handleStreamingMessage(data);
+                            break;
+                        case 'node_result':
+                            this.handleNodeResult(data);
+                            break;
+                        case 'final_result':
+                            this.handleFinalResult(data);
+                            break;
+                        case 'error':
+                            this.handleError(data.message);
+                            break;
+                        default:
+                            // 如果有type但不在上述列表中，记录日志但不处理
+                            console.log('未知的数据类型:', data.type, data);
+                            break;
+                    }
+                } else if (data.step) {
+                    // 处理旧格式的step-based数据
+                    this.handleLegacyStepData(data);
+                } else {
+                    // 既没有type也没有step，记录日志
+                    console.log('未知的数据格式:', data);
+                }
+            }
+            
+            handleStreamingMessage(data) {
+                switch (data.step) {
+                    case 'planning':
+                        this.displayPlan(data.data);
+                        break;
+                    case 'executing_node':
+                        this.addStatusMessage(data.message, 'thinking');
+                        this.updateCurrentStepStatus(data.data);
+                        this.setCurrentStepActive(data.data);
+                        break;
+                    case 'node_completed':
+                        // 这个步骤已经在handleNodeResult中处理，这里只添加状态消息
+                        this.addStatusMessage(data.message, 'success');
+                        break;
+                    default:
+                        // 只添加状态消息，避免重复处理
+                        this.addStatusMessage(data.message, 'thinking');
+                        break;
+                }
+            }
+            
+            handleNodeResult(data) {
+                // 处理单个节点执行完成的结果
+                const stepNumber = data.data.step_number;
+                const result = data.data.result;
+                
+                // 检查是否已经处理过这个步骤
+                const stepKey = `node_result_${stepNumber}`;
+                if (this.processedSteps.has(stepKey)) {
+                    console.log(`步骤 ${stepNumber} 已经处理过，跳过重复处理`);
+                    return;
+                }
+                
+                // 标记为已处理
+                this.processedSteps.add(stepKey);
+                
+                // 更新右侧执行计划中的步骤状态
+                this.updateStepResult(stepNumber, result);
+                
+                // 添加状态消息
+                this.addStatusMessage(data.message, 'success');
+                
+                // 在聊天区域也显示执行结果摘要
+                this.addExecutionResultToChat(stepNumber, result);
+            }
+            
+            handleFinalResult(data) {
+                // 处理最终结果
+                this.handleComplete(data.data);
+            }
+            
+            handleLegacyStepData(data) {
+                // 兼容旧的step-based处理逻辑
+                switch (data.step) {
+                    case 'confirmation_processed':
+                        this.updateStatusMessage(data.message);
+                        break;
+                    case 'step_completed':
+                        // 检查是否已经处理过这个步骤
+                        const stepKey = `legacy_step_${data.step_number}`;
+                        if (this.processedSteps.has(stepKey)) {
+                            console.log(`旧格式步骤 ${data.step_number} 已经处理过，跳过重复处理`);
+                            return;
+                        }
+                        
+                        // 标记为已处理
+                        this.processedSteps.add(stepKey);
+                        this.updateStepResult(data.step_number, data.data);
+                        break;
+                    case 'step_timing':
+                        this.handleTimingInfo(data);
+                        break;
+                    case 'step_failed':
+                        this.handleError(data.message);
+                        break;
+                    case 'completed':
+                        this.handleComplete(data.data);
+                        break;
+                }
+            }
+            
+            updateStatusMessage(message) {
+                this.addStatusMessage(message);
+            }
+            
+            displayPlan(planData) {
+                this.currentPlan = planData;
+                this.clearPlanningPanel();
+                
+                // 显示任务分析
+                const summaryDiv = document.createElement('div');
+                summaryDiv.className = 'planning-summary';
+                summaryDiv.innerHTML = `
+                    <h4>📋 任务分析</h4>
+                    <p>${planData.task_analysis}</p>
+                `;
+                this.planningContent.appendChild(summaryDiv);
+                
+                // 显示执行计划
+                const planHeader = document.createElement('div');
+                planHeader.className = 'planning-header';
+                planHeader.innerHTML = '📝 执行计划';
+                this.planningContent.appendChild(planHeader);
+                
+                planData.execution_plan.forEach(step => {
+                    this.addPlanningStep(step);
+                });
+            }
+            
+            addPlanningStep(step) {
+                const stepDiv = document.createElement('div');
+                stepDiv.className = 'planning-step';
+                stepDiv.id = `step-${step.step}`;
+                
+                stepDiv.innerHTML = `
+                    <div class="step-header">
+                        <div class="step-number">${step.step}</div>
+                        <div class="step-title">${step.description}</div>
+                    </div>
+                    <div class="step-description">预期结果: ${step.expected_result}</div>
+                `;
+                
+                this.planningContent.appendChild(stepDiv);
+            }
+            
+            updateStepResult(stepNumber, resultData) {
+                const stepDiv = document.getElementById(`step-${stepNumber}`);
+                if (!stepDiv) return;
+                
+                // 更新步骤状态
+                stepDiv.className = 'planning-step completed';
+                const stepNumberEl = stepDiv.querySelector('.step-number');
+                stepNumberEl.className = 'step-number completed';
+                
+                // 检查是否已经有结果区域，如果有则更新，否则创建新的
+                let resultDiv = stepDiv.querySelector('.step-result');
+                if (!resultDiv) {
+                    resultDiv = document.createElement('div');
+                    resultDiv.className = 'step-result';
+                    stepDiv.appendChild(resultDiv);
+                }
+                
+                // 更新执行结果
+                const executionResult = resultData.execution_result || resultData.result?.execution_result || '执行完成';
+                const status = resultData.status || resultData.result?.status || 'completed';
+                
+                // 根据状态设置不同的样式
+                let statusIcon = '✅';
+                let statusText = '执行完成';
+                if (status === 'failed') {
+                    statusIcon = '❌';
+                    statusText = '执行失败';
+                    stepDiv.className = 'planning-step failed';
+                    stepNumberEl.className = 'step-number failed';
+                }
+                
+                resultDiv.innerHTML = `
+                    <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                        <span>${statusIcon}</span>
+                        <strong>${statusText}:</strong>
+                    </div>
+                    <div style="background: ${status === 'failed' ? '#ffebee' : '#f8f9fa'}; padding: 8px; border-radius: 4px; font-size: 13px; line-height: 1.4; max-height: 300px; overflow-y: auto; border: 1px solid ${status === 'failed' ? '#f44336' : '#e1e5e9'};">
+                        ${this.formatExecutionResult(executionResult)}
+                    </div>
+                `;
+                
+                // 如果有时间信息，显示步骤耗时
+                const timing = resultData.timing || resultData.result?.timing;
+                if (timing) {
+                    let timingDiv = stepDiv.querySelector('.step-timing');
+                    if (!timingDiv) {
+                        timingDiv = document.createElement('div');
+                        timingDiv.className = 'step-timing';
+                        stepDiv.appendChild(timingDiv);
+                    }
+                    timingDiv.innerHTML = `⏱️ 步骤耗时: ${timing.duration}秒`;
+                }
+                
+                // 滚动到当前步骤
+                this.scrollToStep(stepDiv);
+            }
+            
+            extractAnswerFromResult(result) {
+                // 提取answer字段的辅助方法
+                if (typeof result === 'string') {
+                    // 检查是否包含JSON格式
+                    if (result.trim().startsWith('{') || result.trim().startsWith('[')) {
+                        try {
+                            const parsed = JSON.parse(result);
+                            return parsed.answer || result;
+                        } catch (e) {
+                            return result;
+                        }
+                    }
+                    return result;
+                } else if (typeof result === 'object' && result !== null) {
+                    return result.answer || result;
+                }
+                return result;
+            }
+
+            formatExecutionResult(result) {
+                // 格式化执行结果，使其更易读
+                const extractedResult = this.extractAnswerFromResult(result);
+                
+                if (typeof extractedResult === 'string') {
+                    // 检查是否包含代码块
+                    if (extractedResult.includes('```') || extractedResult.includes('`')) {
+                        return this.formatMessageContent(extractedResult);
+                    }
+                    
+                    // 完整显示内容，不截断
+                    return this.formatMessageContent(extractedResult);
+                } else if (typeof extractedResult === 'object' && extractedResult !== null) {
+                    // 如果是对象，格式化显示
+                    return `<pre><code>${JSON.stringify(extractedResult, null, 2)}</code></pre>`;
+                }
+                return String(extractedResult);
+            }
+            
+            addExecutionResultToChat(stepNumber, resultData) {
+                // 在聊天区域添加执行结果摘要
+                const executionResult = resultData.execution_result || resultData.result?.execution_result || '执行完成';
+                const status = resultData.status || resultData.result?.status || 'completed';
+                const timing = resultData.timing || resultData.result?.timing;
+                
+                let statusIcon = '✅';
+                let statusText = '执行完成';
+                if (status === 'failed') {
+                    statusIcon = '❌';
+                    statusText = '执行失败';
+                }
+                
+                // 创建执行结果摘要
+                let summaryText = `${statusIcon} 步骤 ${stepNumber} ${statusText}`;
+                if (timing) {
+                    summaryText += ` (耗时: ${timing.duration}秒)`;
+                }
+                
+                // 添加执行结果摘要到聊天
+                this.addMessage(summaryText, 'ai');
+                
+                // 如果执行结果包含重要信息，也显示详细结果
+                if (executionResult && executionResult !== '执行完成' && executionResult !== '节点执行完成') {
+                    const detailedResult = this.formatExecutionResult(executionResult);
+                    // 移除长度限制，完整显示结果
+                    this.addMessage(`📋 详细结果:\n${detailedResult}`, 'ai');
+                }
+            }
+            
+            updateCurrentStepStatus(data) {
+                // 更新当前步骤状态显示
+                if (data && data.node_index !== undefined) {
+                    const currentStep = data.node_index + 1;
+                    const totalSteps = data.total_nodes || this.currentPlan?.execution_plan?.length || 0;
+                    
+                    // 更新进度指示器
+                    this.updateProgressIndicator(currentStep, totalSteps);
+                }
+            }
+            
+            setCurrentStepActive(data) {
+                // 设置当前步骤为活动状态
+                if (data && data.node_index !== undefined) {
+                    const stepNumber = data.node_index + 1;
+                    const stepDiv = document.getElementById(`step-${stepNumber}`);
+                    if (stepDiv) {
+                        // 移除其他步骤的活动状态
+                        document.querySelectorAll('.planning-step').forEach(step => {
+                            step.classList.remove('active');
+                            const stepNumberEl = step.querySelector('.step-number');
+                            if (stepNumberEl) {
+                                stepNumberEl.classList.remove('active');
+                            }
+                        });
+                        
+                        // 设置当前步骤为活动状态
+                        stepDiv.classList.add('active');
+                        const stepNumberEl = stepDiv.querySelector('.step-number');
+                        if (stepNumberEl) {
+                            stepNumberEl.classList.add('active');
+                        }
+                        
+                        // 滚动到当前步骤
+                        this.scrollToStep(stepDiv);
+                    }
+                }
+            }
+            
+            updateProgressIndicator(currentStep, totalSteps) {
+                // 更新进度指示器
+                let progressDiv = document.getElementById('execution-progress');
+                if (!progressDiv) {
+                    progressDiv = document.createElement('div');
+                    progressDiv.id = 'execution-progress';
+                    progressDiv.className = 'execution-progress';
+                    progressDiv.innerHTML = `
+                        <div class="progress-header">
+                            <span>📊 执行进度</span>
+                            <span class="progress-text">步骤 ${currentStep}/${totalSteps}</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${(currentStep / totalSteps) * 100}%"></div>
+                        </div>
+                    `;
+                    this.planningContent.insertBefore(progressDiv, this.planningContent.firstChild);
+                } else {
+                    const progressText = progressDiv.querySelector('.progress-text');
+                    const progressFill = progressDiv.querySelector('.progress-fill');
+                    if (progressText) {
+                        progressText.textContent = `步骤 ${currentStep}/${totalSteps}`;
+                    }
+                    if (progressFill) {
+                        progressFill.style.width = `${(currentStep / totalSteps) * 100}%`;
+                    }
+                }
+            }
+            
+            scrollToStep(stepElement) {
+                // 平滑滚动到指定步骤
+                stepElement.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'nearest' 
+                });
+            }
+            
+            handleTimingInfo(data) {
+                // 存储时间统计信息
+                if (data.timing) {
+                    if (data.step_number) {
+                        // 步骤时间统计
+                        this.timingInfo[`step_${data.step_number}`] = data.timing;
+                    } else {
+                        // 阶段时间统计
+                        const phaseName = data.step || 'unknown';
+                        this.timingInfo[phaseName] = data.timing;
+                    }
+                }
+                
+                // 显示时间统计消息
+                this.addStatusMessage(data.message, 'timing');
+                
+                // 如果是总时间统计，显示详细的时间面板
+                if (data.step === 'total_timing' && data.timing) {
+                    this.displayTimingSummary(data.timing);
+                }
+            }
+            
+            displayTimingSummary(totalTiming) {
+                // 创建时间统计面板
+                const timingPanel = document.createElement('div');
+                timingPanel.className = 'timing-display';
+                
+                // 计算各阶段时间
+                const phaseTimes = [];
+                const stepTimes = [];
+                
+                for (const [key, timing] of Object.entries(this.timingInfo)) {
+                    if (key.startsWith('step_')) {
+                        stepTimes.push({
+                            name: `步骤 ${key.replace('step_', '')}`,
+                            duration: timing.duration
+                        });
+                    } else if (key !== 'total') {
+                        phaseTimes.push({
+                            name: this.getPhaseDisplayName(key),
+                            duration: timing.duration
+                        });
+                    }
+                }
+                
+                timingPanel.innerHTML = `
+                    <div class="timing-header">
+                        <span>⏱️</span>
+                        <span>执行时间统计</span>
+                    </div>
+                    <div class="timing-stats">
+                        <div class="timing-stat">
+                            <div class="timing-stat-label">总耗时</div>
+                            <div class="timing-stat-value">${totalTiming.duration}秒</div>
+                        </div>
+                        <div class="timing-stat">
+                            <div class="timing-stat-label">执行阶段</div>
+                            <div class="timing-stat-value">${totalTiming.phases}个</div>
+                        </div>
+                        <div class="timing-stat">
+                            <div class="timing-stat-label">执行步骤</div>
+                            <div class="timing-stat-value">${totalTiming.steps}个</div>
+                        </div>
+                    </div>
+                `;
+                
+                // 添加各阶段时间详情
+                if (phaseTimes.length > 0) {
+                    const phasesDiv = document.createElement('div');
+                    phasesDiv.style.marginTop = '10px';
+                    phasesDiv.innerHTML = '<strong>各阶段耗时:</strong>';
+                    
+                    phaseTimes.forEach(phase => {
+                        const phaseDiv = document.createElement('div');
+                        phaseDiv.className = 'phase-timing';
+                        phaseDiv.innerHTML = `${phase.name}: ${phase.duration}秒`;
+                        phasesDiv.appendChild(phaseDiv);
+                    });
+                    
+                    timingPanel.appendChild(phasesDiv);
+                }
+                
+                // 添加步骤时间详情
+                if (stepTimes.length > 0) {
+                    const stepsDiv = document.createElement('div');
+                    stepsDiv.style.marginTop = '10px';
+                    stepsDiv.innerHTML = '<strong>各步骤耗时:</strong>';
+                    
+                    stepTimes.forEach(step => {
+                        const stepDiv = document.createElement('div');
+                        stepDiv.className = 'step-timing';
+                        stepDiv.innerHTML = `${step.name}: ${step.duration}秒`;
+                        stepsDiv.appendChild(stepDiv);
+                    });
+                    
+                    timingPanel.appendChild(stepsDiv);
+                }
+                
+                this.planningContent.appendChild(timingPanel);
+                this.scrollToBottom();
+            }
+            
+            getPhaseDisplayName(phaseKey) {
+                const phaseNames = {
+                    'task_analysis': '任务分析',
+                    'plan_creation': '计划创建',
+                    'response_generation': '回复生成'
+                };
+                return phaseNames[phaseKey] || phaseKey;
+            }
+            
+            handleError(message) {
+                this.addStatusMessage(message, 'error');
+                this.statusIndicator.className = 'status-indicator error';
+                
+                // 在聊天区域也显示错误信息
+                this.addMessage(`❌ 执行错误: ${message}`, 'ai');
+                
+                // 如果有当前步骤，标记为失败状态
+                this.markCurrentStepAsFailed();
+            }
+            
+            markCurrentStepAsFailed() {
+                // 标记当前活动步骤为失败状态
+                const activeStep = document.querySelector('.planning-step.active');
+                if (activeStep) {
+                    activeStep.classList.remove('active');
+                    activeStep.classList.add('failed');
+                    
+                    const stepNumberEl = activeStep.querySelector('.step-number');
+                    if (stepNumberEl) {
+                        stepNumberEl.classList.remove('active');
+                        stepNumberEl.classList.add('failed');
+                    }
+                    
+                    // 添加错误结果区域
+                    let resultDiv = activeStep.querySelector('.step-result');
+                    if (!resultDiv) {
+                        resultDiv = document.createElement('div');
+                        resultDiv.className = 'step-result';
+                        activeStep.appendChild(resultDiv);
+                    }
+                    
+                    resultDiv.innerHTML = `
+                        <div style="margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+                            <span>❌</span>
+                            <strong>执行失败:</strong>
+                        </div>
+                        <div style="background: #ffebee; padding: 8px; border-radius: 4px; font-size: 13px; line-height: 1.4; border: 1px solid #f44336; color: #c62828;">
+                            步骤执行过程中发生错误，请检查任务要求或重试。
+                        </div>
+                    `;
+                }
+            }
+            
+            handleComplete(data) {
+                // 显示最终结果到对话框
+                const finalResponse = data.response || data.final_response || '任务执行完成';
+                this.addMessage(finalResponse, 'ai');
+                
+                // 更新对话历史
+                if (data.conversation_history) {
+                    this.conversationHistory = data.conversation_history;
+                } else {
+                    // 如果没有提供对话历史，手动更新
+                    this.conversationHistory.push(finalResponse);
+                }
+                
+                this.statusIndicator.className = 'status-indicator';
+                
+                // 显示完成状态
+                this.addStatusMessage('🎉 任务执行完成！', 'success');
+                
+                // 如果有时间统计信息，更新本地存储
+                if (data.timing_info) {
+                    this.timingInfo = data.timing_info;
+                }
+                
+                // 如果有步骤结果，显示执行摘要
+                if (data.step_results && data.step_results.length > 0) {
+                    this.displayExecutionSummary(data);
+                }
+            }
+            
+            displayExecutionSummary(data) {
+                // 显示执行摘要
+                const summaryDiv = document.createElement('div');
+                summaryDiv.className = 'planning-summary';
+                summaryDiv.style.marginTop = '15px';
+                
+                const completedSteps = data.step_results.filter(step => step.status === 'completed').length;
+                const totalSteps = data.step_results.length;
+                
+                summaryDiv.innerHTML = `
+                    <h4>📊 执行摘要</h4>
+                    <p><strong>总步骤数:</strong> ${totalSteps}</p>
+                    <p><strong>完成步骤:</strong> ${completedSteps}</p>
+                    <p><strong>成功率:</strong> ${totalSteps > 0 ? Math.round((completedSteps / totalSteps) * 100) : 0}%</p>
+                `;
+                
+                this.planningContent.appendChild(summaryDiv);
+                this.scrollToBottom();
+            }
+            
+            addStatusMessage(message, type = 'thinking') {
+                const statusDiv = document.createElement('div');
+                statusDiv.className = `status-message ${type}`;
+                statusDiv.textContent = message;
+                this.planningContent.appendChild(statusDiv);
+                this.scrollToBottom();
+            }
+            
+            clearPlanningPanel() {
+                this.planningContent.innerHTML = '';
+                // 清除进度指示器
+                const progressDiv = document.getElementById('execution-progress');
+                if (progressDiv) {
+                    progressDiv.remove();
+                }
+            }
+            
+            addMessage(content, sender) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${sender}`;
+                
+                const avatar = document.createElement('div');
+                avatar.className = 'message-avatar';
+                avatar.textContent = sender === 'user' ? 'U' : 'AI';
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'message-content';
+                
+                // 格式化消息内容
+                if (sender === 'ai' && this.isFormattedContent(content)) {
+                    messageContent.innerHTML = this.formatMessageContent(content);
+                } else {
+                    messageContent.textContent = content;
+                }
+                
+                messageDiv.appendChild(avatar);
+                messageDiv.appendChild(messageContent);
+                
+                this.chatMessages.appendChild(messageDiv);
+                this.scrollToBottom();
+            }
+            
+            isFormattedContent(content) {
+                // 检查内容是否包含需要格式化的元素
+                return content.includes('```') || 
+                       content.includes('**') || 
+                       content.includes('*') || 
+                       content.includes('`') ||
+                       content.includes('\n');
+            }
+            
+            formatMessageContent(content) {
+                // 格式化消息内容，支持基本的Markdown语法
+                let formatted = content;
+                
+                // 处理代码块
+                formatted = formatted.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>');
+                
+                // 处理行内代码
+                formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+                
+                // 处理粗体
+                formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+                
+                // 处理斜体
+                formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+                
+                // 处理换行
+                formatted = formatted.replace(/\n/g, '<br>');
+                
+                // 处理错误信息高亮
+                formatted = formatted.replace(/(错误|失败|异常|Error|Failed|Exception)/gi, '<span style="color: #f44336; font-weight: bold;">$1</span>');
+                
+                // 处理成功信息高亮
+                formatted = formatted.replace(/(成功|完成|Success|Completed)/gi, '<span style="color: #4caf50; font-weight: bold;">$1</span>');
+                
+                // 处理警告信息高亮
+                formatted = formatted.replace(/(警告|注意|Warning|Notice)/gi, '<span style="color: #ff9800; font-weight: bold;">$1</span>');
+                
+                return formatted;
+            }
+            
+            setLoading(loading) {
+                this.sendButton.disabled = loading;
+                this.messageInput.disabled = loading;
+                
+                if (loading) {
+                    this.loadingIndicator.classList.add('show');
+                } else {
+                    this.loadingIndicator.classList.remove('show');
+                }
+            }
+            
+            scrollToBottom() {
+                this.chatMessages.scrollTop = this.chatMessages.scrollHeight;
+                this.planningContent.scrollTop = this.planningContent.scrollHeight;
+            }
+
+            // MCP工具相关方法
+            showMCPPanel() {
+                document.getElementById('mcpOverlay').classList.add('show');
+                this.renderMCPServers();
+            }
+
+            hideMCPPanel() {
+                document.getElementById('mcpOverlay').classList.remove('show');
+            }
+
+            async loadMCPConfigs() {
+                try {
+                    const response = await fetch('/api/chat/mcp/configs');
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    const data = await response.json();
+                    this.mcpConfigs = data.configs || [];
+                } catch (error) {
+                    console.error('加载MCP配置失败:', error);
+                    this.mcpConfigs = [];
+                }
+            }
+
+            async saveMCPConfigs() {
+                try {
+                    const response = await fetch('/api/chat/mcp/configs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            configs: this.mcpConfigs
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    this.addStatusMessage('✅ MCP配置已保存', 'success');
+                } catch (error) {
+                    console.error('保存MCP配置失败:', error);
+                    this.addStatusMessage(`❌ 保存MCP配置失败: ${error.message}`, 'error');
+                }
+            }
+
+            renderMCPServers() {
+                const serversList = document.getElementById('mcpServersList');
+                serversList.innerHTML = '';
+                
+                if (this.mcpConfigs.length === 0) {
+                    serversList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">暂无MCP服务</div>';
+                    return;
+                }
+                
+                this.mcpConfigs.forEach((config, index) => {
+                    const serverItem = document.createElement('div');
+                    serverItem.className = 'mcp-server-item';
+                    serverItem.innerHTML = `
+                        <div class="server-info">
+                            <div class="server-name">${config.name || '未命名服务'}</div>
+                            <div class="server-type">${config.connection_type || 'stdio'}</div>
+                        </div>
+                        <div class="server-actions">
+                            <button class="server-action-btn edit-btn" onclick="app.editMCPServer(${index})">编辑</button>
+                            <button class="server-action-btn delete-btn" onclick="app.deleteMCPServer(${index})">删除</button>
+                        </div>
+                    `;
+                    
+                    serversList.appendChild(serverItem);
+                });
+            }
+
+            showConfigPanel() {
+                this.editingIndex = undefined; // 清除编辑状态
+                document.getElementById('mcpConfigOverlay').classList.add('show');
+                document.getElementById('mcpJsonConfig').value = '';
+            }
+
+            hideConfigPanel() {
+                document.getElementById('mcpConfigOverlay').classList.remove('show');
+            }
+
+            saveMCPServer() {
+                const jsonConfig = document.getElementById('mcpJsonConfig').value.trim();
+                if (!jsonConfig) {
+                    alert('请输入MCP服务配置');
+                    return;
+                }
+
+                try {
+                    const config = JSON.parse(jsonConfig);
+                    
+                    if (this.editingIndex !== undefined) {
+                        // 编辑现有配置
+                        this.mcpConfigs[this.editingIndex] = config;
+                        this.editingIndex = undefined;
+                        this.addStatusMessage('✅ MCP服务配置已更新', 'success');
+                    } else {
+                        // 添加新配置
+                        this.mcpConfigs.push(config);
+                        this.addStatusMessage('✅ MCP服务配置已保存', 'success');
+                    }
+                    
+                    this.saveMCPConfigs();
+                    this.renderMCPServers();
+                    this.hideConfigPanel();
+                } catch (error) {
+                    alert('JSON格式错误，请检查配置格式');
+                    console.error('JSON解析错误:', error);
+                }
+            }
+
+            editMCPServer(index) {
+                const config = this.mcpConfigs[index];
+                document.getElementById('mcpJsonConfig').value = JSON.stringify(config, null, 2);
+                document.getElementById('mcpConfigOverlay').classList.add('show');
+                
+                // 保存当前编辑的索引
+                this.editingIndex = index;
+            }
+
+            deleteMCPServer(index) {
+                if (confirm('确定要删除这个MCP服务吗？')) {
+                    this.mcpConfigs.splice(index, 1);
+                    this.saveMCPConfigs();
+                    this.renderMCPServers();
+                }
+            }
+
+
+
+
+
+
+
+        }
+        
+        // 初始化应用
+        let app;
+        document.addEventListener('DOMContentLoaded', () => {
+            app = new PlanningChatApp();
+        });
+    </script>
+</body>
+</html>
+</html>
