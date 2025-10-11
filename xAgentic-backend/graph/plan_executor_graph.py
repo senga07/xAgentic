@@ -349,20 +349,63 @@ class PlanExecutorGraph:
             start_time = time.time()
             self.logger.info("生成最终回复")
 
-            # 生成回复
-            if state["step_results"]:
-                final_result = state["step_results"][-1].get("execution_result", "")
-            else:
-                final_result = state["task_analysis"]
+            # 准备总结回复的数据
+            user_task = ""
+            if state.get("messages"):
+                # 从消息历史中获取用户任务
+                for msg in state["messages"]:
+                    if hasattr(msg, 'content') and msg.__class__.__name__ == 'HumanMessage':
+                        user_task = msg.content
+                        break
+            
+            task_analysis = state.get("task_analysis", "")
+            execution_plan = state.get("execution_plan", [])
+            step_results = state.get("step_results", [])
 
-            state["final_response"] = final_result
-            state["status"] = "completed"
+            # 格式化执行计划
+            plan_text = ""
+            if execution_plan:
+                for i, step in enumerate(execution_plan, 1):
+                    plan_text += f"步骤{i}: {step.get('description', '')}\n"
+                    plan_text += f"预期结果: {step.get('expected_result', '')}\n\n"
 
-            # 添加到消息历史
-            if "messages" in state:
-                state["messages"].append(AIMessage(content=final_result))
-            else:
-                state["messages"] = [AIMessage(content=final_result)]
+            # 格式化执行结果
+            results_text = ""
+            if step_results:
+                for i, result in enumerate(step_results, 1):
+                    results_text += f"步骤{i}执行结果:\n"
+                    results_text += f"状态: {result.get('status', 'unknown')}\n"
+                    results_text += f"结果: {result.get('execution_result', '')}\n"
+                    if result.get('error_details'):
+                        results_text += f"错误详情: {result.get('error_details')}\n"
+                    results_text += "\n"
+
+            # 使用LLM生成总结回复
+            try:
+                from langchain_core.messages import SystemMessage, HumanMessage
+                
+                # 构建总结提示
+                summary_messages = [
+                    HumanMessage(content=summary_response_prompt.format(
+                        user_task=user_task,
+                        task_analysis=task_analysis,
+                        execution_plan=plan_text,
+                        step_results=results_text
+                    ))
+                ]
+                
+                # 使用战略LLM生成总结
+                llm_start_time = time.time()
+                response = self.plan_llm.invoke(summary_messages)
+                llm_duration = time.time() - llm_start_time
+                
+                final_result = response.content.strip()
+                self.logger.info(f"LLM总结生成耗时: {llm_duration:.2f}秒")
+                state["final_response"] = final_result
+                state["status"] = "completed"
+            except Exception as e:
+                self.logger.error(f"LLM总结生成失败: {e}")
+                raise e
 
             duration = time.time() - start_time
             if "timing_info" not in state:

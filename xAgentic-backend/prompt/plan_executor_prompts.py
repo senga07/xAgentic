@@ -86,3 +86,29 @@ react_prompt = PromptTemplate.from_template("""# 角色
 {{"answer": "基于工具执行结果的最终答案"}}
 """)
 
+
+summary_response_prompt = PromptTemplate.from_template("""# 角色
+你是一个智能总结助手，需要根据任务执行过程和结果生成一个综合性的总结回复。
+
+# 任务信息
+原始任务：{user_task}
+任务分析：{task_analysis}
+
+# 执行计划
+{execution_plan}
+
+# 执行结果
+{step_results}
+
+# 总结要求
+1. 回顾整个任务的执行过程
+2. 总结每个步骤的关键成果
+3. 整合所有执行结果，形成完整的答案
+4. 确保回复逻辑清晰、内容完整
+5. 突出重要的发现或结果
+
+# 输出格式
+请生成一个自然、流畅的总结回复，直接回答用户的问题，不要包含JSON格式或其他结构化标记。
+
+总结回复：""")
+
