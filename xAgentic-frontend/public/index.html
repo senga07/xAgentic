@@ -1008,6 +1008,156 @@
             box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
         }
 
+        /* 确认对话框样式 */
+        .confirmation-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .confirmation-dialog {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+
+        .confirmation-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .confirmation-icon {
+            font-size: 24px;
+            margin-right: 12px;
+        }
+
+        .confirmation-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .confirmation-content {
+            margin-bottom: 20px;
+        }
+
+        .uncertain-step {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .step-number {
+            background: #ff9800;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+
+        .step-description {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .uncertainty-reason {
+            background: #f8f9fa;
+            border-left: 3px solid #ff9800;
+            padding: 8px 12px;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #666;
+        }
+
+        .feedback-input {
+            width: 100%;
+            min-height: 80px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            resize: vertical;
+            margin-bottom: 16px;
+        }
+
+        .feedback-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
+        }
+
+        .confirmation-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .confirmation-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .confirmation-btn.primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .confirmation-btn.primary:hover {
+            background: #5a6fd8;
+        }
+
+        .confirmation-btn.secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .confirmation-btn.secondary:hover {
+            background: #5a6268;
+        }
+
+        .confirmation-btn.danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .confirmation-btn.danger:hover {
+            background: #c82333;
+        }
+
         @media (max-width: 768px) {
             .main-content {
                 flex-direction: column;
@@ -1023,6 +1173,19 @@
             .chat-container {
                 width: 95%;
                 height: 95vh;
+            }
+
+            .confirmation-dialog {
+                margin: 20px;
+                width: calc(100% - 40px);
+            }
+
+            .confirmation-actions {
+                flex-direction: column;
+            }
+
+            .confirmation-btn {
+                width: 100%;
             }
         }
     </style>
@@ -1139,6 +1302,26 @@
         </div>
     </div>
 
+    <!-- 确认对话框 -->
+    <div class="confirmation-overlay" id="confirmationOverlay" style="display: none;">
+        <div class="confirmation-dialog">
+            <div class="confirmation-header">
+                <div class="confirmation-icon">⚠️</div>
+                <div class="confirmation-title">需要确认执行步骤</div>
+            </div>
+            
+            <div class="confirmation-content" id="confirmationContent">
+                <!-- 动态内容将在这里显示 -->
+            </div>
+            
+            <div class="confirmation-actions">
+                <button class="confirmation-btn danger" id="cancelBtn">取消任务</button>
+                <button class="confirmation-btn secondary" id="continueBtn">继续执行</button>
+                <button class="confirmation-btn primary" id="replanBtn">补充信息后继续</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         class PlanningChatApp {
             constructor() {
@@ -1155,6 +1338,8 @@
                 this.editingIndex = undefined; // 当前编辑的配置索引
                 this.timingInfo = {}; // 存储时间统计信息
                 this.processedSteps = new Set(); // 跟踪已处理的步骤，避免重复输出
+                this.currentThreadId = "user01"; // 当前线程ID
+                this.pendingConfirmation = null; // 待确认的信息
 
                 this.init();
             }
@@ -1178,7 +1363,17 @@
                 document.getElementById('cancelConfigBtn').addEventListener('click', () => this.hideConfigPanel());
                 document.getElementById('saveConfigBtn').addEventListener('click', () => this.saveMCPServer());
 
-                // 人工确认相关事件监听器将通过动态创建的元素来处理
+                // 人工确认相关事件监听器
+                document.getElementById('cancelBtn').addEventListener('click', () => this.handleConfirmationAction('cancel'));
+                document.getElementById('continueBtn').addEventListener('click', () => this.handleConfirmationAction('continue'));
+                document.getElementById('replanBtn').addEventListener('click', () => this.handleConfirmationAction('replan'));
+                
+                // 点击遮罩层关闭确认对话框
+                document.getElementById('confirmationOverlay').addEventListener('click', (e) => {
+                    if (e.target.id === 'confirmationOverlay') {
+                        this.hideConfirmationDialog();
+                    }
+                });
 
                 // 点击遮罩层关闭面板
                 document.getElementById('mcpOverlay').addEventListener('click', (e) => {
@@ -1284,36 +1479,12 @@
             }
             
             handleStreamingData(data) {
-                // 优先处理新格式的数据
-                if (data.type) {
-                    switch (data.type) {
-                        case 'streaming':
-                            this.handleStreamingMessage(data);
-                            break;
-                        case 'node_result':
-                            this.handleNodeResult(data);
-                            break;
-                        case 'final_result':
-                            this.handleFinalResult(data);
-                            break;
-                        case 'error':
-                            this.handleError(data.message);
-                            break;
-                        default:
-                            // 如果有type但不在上述列表中，记录日志但不处理
-                            console.log('未知的数据类型:', data.type, data);
-                            break;
-                    }
-                } else if (data.step) {
-                    // 处理旧格式的step-based数据
-                    this.handleLegacyStepData(data);
-                } else {
-                    // 既没有type也没有step，记录日志
+                // 统一使用step字段处理所有数据
+                if (!data.step) {
                     console.log('未知的数据格式:', data);
+                    return;
                 }
-            }
-            
-            handleStreamingMessage(data) {
+
                 switch (data.step) {
                     case 'planning':
                         this.displayPlan(data.data);
@@ -1324,11 +1495,25 @@
                         this.setCurrentStepActive(data.data);
                         break;
                     case 'node_completed':
-                        // 这个步骤已经在handleNodeResult中处理，这里只添加状态消息
                         this.addStatusMessage(data.message, 'success');
+                        this.handleNodeResult(data);
+                        break;
+                    case 'completed':
+                        this.addStatusMessage(data.message, 'success');
+                        this.handleComplete(data.data);
+                        break;
+                    case 'interrupt':
+                        this.handleInterrupt(data);
+                        break;
+                    case 'error':
+                    case 'execution_failed':
+                        this.handleError(data.message);
+                        break;
+                    case 'uncertainty_detected':
+                        this.handleUncertainty(data);
                         break;
                     default:
-                        // 只添加状态消息，避免重复处理
+                        // 处理其他step类型，只添加状态消息
                         this.addStatusMessage(data.message, 'thinking');
                         break;
                 }
@@ -1364,35 +1549,6 @@
                 this.handleComplete(data.data);
             }
             
-            handleLegacyStepData(data) {
-                // 兼容旧的step-based处理逻辑
-                switch (data.step) {
-                    case 'confirmation_processed':
-                        this.updateStatusMessage(data.message);
-                        break;
-                    case 'step_completed':
-                        // 检查是否已经处理过这个步骤
-                        const stepKey = `legacy_step_${data.step_number}`;
-                        if (this.processedSteps.has(stepKey)) {
-                            console.log(`旧格式步骤 ${data.step_number} 已经处理过，跳过重复处理`);
-                            return;
-                        }
-                        
-                        // 标记为已处理
-                        this.processedSteps.add(stepKey);
-                        this.updateStepResult(data.step_number, data.data);
-                        break;
-                    case 'step_timing':
-                        this.handleTimingInfo(data);
-                        break;
-                    case 'step_failed':
-                        this.handleError(data.message);
-                        break;
-                    case 'completed':
-                        this.handleComplete(data.data);
-                        break;
-                }
-            }
             
             updateStatusMessage(message) {
                 this.addStatusMessage(message);
@@ -2073,12 +2229,155 @@
                 }
             }
 
+            // Human-in-the-loop 相关方法
+            handleInterrupt(data) {
+                console.log('处理中断事件:', data);
+                this.pendingConfirmation = data.data;
+                this.showConfirmationDialog(data.data);
+            }
 
+            handleUncertainty(data) {
+                console.log('处理不确定性事件:', data);
+                this.addStatusMessage(data.message, 'warning');
+            }
 
+            handleReplanning(data) {
+                console.log('处理重新规划事件:', data);
+                this.addStatusMessage(data.message, 'success');
+                
+                // 更新计划显示
+                if (data.data && data.data.execution_plan) {
+                    this.displayPlan(data.data);
+                }
+            }
 
+            handleCancelled(data) {
+                console.log('处理取消事件:', data);
+                this.addStatusMessage(data.message, 'error');
+                this.hideConfirmationDialog();
+            }
 
+            showConfirmationDialog(confirmationData) {
+                const content = document.getElementById('confirmationContent');
+                
+                // 处理新的单步骤确认格式
+                if (confirmationData.step_info) {
+                    const step = confirmationData.step_info;
+                    let html = `
+                        <p style="margin-bottom: 16px; color: #666;">
+                            步骤 ${confirmationData.current_step}/${confirmationData.total_steps} 需要您的确认：
+                        </p>
+                        <div class="uncertain-step">
+                            <div class="step-header">
+                                <div class="step-number">${step.step}</div>
+                                <div class="step-description">${step.description}</div>
+                            </div>
+                            <div class="uncertainty-reason">
+                                <strong>需要确认的原因：</strong>${step.uncertainty_reason}
+                            </div>
+                        </div>
+                    `;
+                    content.innerHTML = html;
+                } else {
+                    // 处理旧的多个步骤确认格式
+                    const uncertainSteps = confirmationData.uncertain_steps || [];
+                    
+                    let html = '<p style="margin-bottom: 16px; color: #666;">以下步骤需要您的确认：</p>';
+                    
+                    uncertainSteps.forEach(step => {
+                        html += `
+                            <div class="uncertain-step">
+                                <div class="step-header">
+                                    <div class="step-number">${step.step}</div>
+                                    <div class="step-description">${step.description}</div>
+                                </div>
+                                <div class="uncertainty-reason">
+                                    <strong>需要确认的原因：</strong>${step.uncertainty_reason}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    content.innerHTML = html;
+                }
+                
+                // 添加反馈输入框
+                const feedbackHtml = `
+                    <div style="margin-top: 16px;">
+                        <label for="feedbackInput" style="display: block; margin-bottom: 8px; font-weight: 500;">
+                            补充信息（可选）：
+                        </label>
+                        <textarea 
+                            id="feedbackInput" 
+                            class="feedback-input" 
+                            placeholder="请提供任何有助于执行的信息，例如具体的文件路径、参数等..."
+                        ></textarea>
+                    </div>
+                `;
+                
+                content.innerHTML += feedbackHtml;
+                document.getElementById('confirmationOverlay').style.display = 'flex';
+            }
 
+            hideConfirmationDialog() {
+                document.getElementById('confirmationOverlay').style.display = 'none';
+                this.pendingConfirmation = null;
+            }
 
+            handleConfirmationAction(action) {
+                const feedbackInput = document.getElementById('feedbackInput');
+                const feedback = feedbackInput ? feedbackInput.value.trim() : '';
+                
+                this.hideConfirmationDialog();
+                
+                // 使用流式反馈而不是普通反馈
+                this.sendFeedbackStream(action, feedback);
+            }
+
+            async sendFeedbackStream(action, feedback) {
+                try {
+                    const response = await fetch('/api/chat/feedback-stream', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            thread_id: this.currentThreadId,
+                            action: action,
+                            feedback: feedback
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    // 继续处理流式响应
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+                        
+                        for (const line of lines) {
+                            if (line.startsWith('data: ')) {
+                                try {
+                                    const data = JSON.parse(line.slice(6));
+                                    this.handleStreamingData(data);
+                                } catch (e) {
+                                    console.error('解析流数据失败:', e);
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('发送流式反馈失败:', error);
+                    this.addStatusMessage(`❌ 发送反馈失败: ${error.message}`, 'error');
+                }
+            }
         }
         
         // 初始化应用
@@ -2088,5 +2387,4 @@
         });
     </script>
 </body>
-</html>
 </html>

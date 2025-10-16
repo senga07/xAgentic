@@ -9,11 +9,26 @@ planning_prompt = PromptTemplate.from_template("""# 角色
 1. 分析任务的具体要求
 2. 将任务分解为具体的执行步骤（至少1个步骤）
 3. 为每个步骤提供清晰的描述和预期结果
+4. 识别每个步骤是否需要人工确认
 
 # 重要要求
 - 必须生成至少1个执行步骤
 - 每个步骤都应该有明确的描述和预期结果
 - 步骤应该具体可执行，不要过于抽象
+- 对于不确定的步骤，必须标记 requires_confirmation 为 true
+
+# 不确定因素识别
+以下情况需要标记为需要确认：
+- 涉及文件路径但路径不明确（如"删除文件"、"修改文档"等）
+- 需要用户选择或决策（如"选择最佳方案"、"决定处理方式"等）
+- 涉及敏感操作（删除、修改重要文件、系统配置等）
+- 需要用户提供额外信息（如具体参数、配置选项等）
+- 可能影响系统安全或数据完整性
+- 涉及外部服务但配置不明确
+- 需要用户输入或确认具体内容
+- 涉及用户偏好或个性化设置
+- 可能产生不可逆操作
+- 需要访问用户私有数据或文件
 
 # 输出格式
 请严格按照以下JSON格式返回计划，不要包含任何其他文字：
@@ -23,12 +38,16 @@ planning_prompt = PromptTemplate.from_template("""# 角色
         {{
             "step": 1,
             "description": "步骤描述",
-            "expected_result": "预期结果"
+            "expected_result": "预期结果",
+            "requires_confirmation": false,
+            "uncertainty_reason": ""
         }},
         {{
             "step": 2,
             "description": "步骤描述",
-            "expected_result": "预期结果"
+            "expected_result": "预期结果",
+            "requires_confirmation": true,
+            "uncertainty_reason": "需要确认具体文件路径"
         }}
     ]
 }}
@@ -41,50 +60,82 @@ planning_prompt = PromptTemplate.from_template("""# 角色
         {{
             "step": 1,
             "description": "获取当前时间信息",
-            "expected_result": "返回准确的当前时间"
+            "expected_result": "返回准确的当前时间",
+            "requires_confirmation": false,
+            "uncertainty_reason": ""
+        }}
+    ]
+}}
+
+如果用户问"删除我的文件"，应该返回：
+{{
+    "task_analysis": "用户要求删除文件，但未指定具体文件路径",
+    "execution_plan": [
+        {{
+            "step": 1,
+            "description": "删除指定路径的文件",
+            "expected_result": "文件被安全删除",
+            "requires_confirmation": true,
+            "uncertainty_reason": "需要确认要删除的具体文件路径，避免误删重要文件"
+        }}
+    ]
+}}
+
+如果用户问"帮我写一个Python脚本"，应该返回：
+{{
+    "task_analysis": "用户需要Python脚本，但未指定具体功能",
+    "execution_plan": [
+        {{
+            "step": 1,
+            "description": "创建Python脚本文件",
+            "expected_result": "生成符合要求的Python脚本",
+            "requires_confirmation": true,
+            "uncertainty_reason": "需要确认脚本的具体功能、输入输出格式、文件名和保存位置"
+        }}
+    ]
+}}
+
+如果用户问"计算1+1等于多少"，应该返回：
+{{
+    "task_analysis": "用户询问简单的数学计算",
+    "execution_plan": [
+        {{
+            "step": 1,
+            "description": "计算1+1的结果",
+            "expected_result": "返回计算结果2",
+            "requires_confirmation": false,
+            "uncertainty_reason": ""
         }}
     ]
 }}""")
 
 
-react_prompt = PromptTemplate.from_template("""# 角色
-你是一个智能执行器，需要完成用户给定的任务。你可以使用各种工具来获取信息、执行代码、搜索网络资源。
+react_prompt = PromptTemplate.from_template("""你是一个智能执行器，需要完成用户给定的任务。
 
-任务目标：{description}
+任务目标：{description}。{user_feedback}
 预期结果：{expected_result}
 
-# 可选工具列表
+你可以使用以下工具：
 {tools}
 
-# 重要说明
-- 优先使用最合适的工具来完成任务
-- 如果任务涉及数据处理、计算、分析或需要生成代码，请使用代码执行工具
-- 文件管理通过MCP filesystem工具实现，包括：
-  * 文件创建、读取、写入、删除
-  * 目录操作和文件列表
-  * 文件权限和属性管理
-  
-# 上下文处理
-- 仔细阅读提供的上下文信息，了解之前步骤的执行结果
-- 如果上下文提到文件路径、创建的文件或其他重要信息，请在执行时考虑这些信息
-- 如果任务需要访问之前创建的文件，请确保使用正确的路径或重新创建文件
-
-# 执行步骤
-1. 分析任务需求和上下文信息
+请按照以下步骤执行：
+1. 分析任务需求
 2. 选择合适的工具
 3. 执行工具并获取结果
 4. 基于结果提供最终答案
 
-# 重要提示
-1. 请专注于完成当前步骤，避免过度复杂的推理
-2. 如果遇到错误，请尝试不同的方法，但不要无限循环
-3. 如果无法完成任务，请明确说明原因并停止
-4. 优先使用简单直接的方法解决问题
+重要提示：
+- 优先使用最合适的工具来完成任务
+- 如果任务涉及数据处理、计算、分析或需要生成代码，请使用代码执行工具
+- 如果任务涉及文件操作，请使用相应的文件管理工具
+- 请专注于完成当前步骤，避免过度复杂的推理
+- 如果遇到错误，请尝试不同的方法
+- 如果无法完成任务，请明确说明原因
+- **重要：避免重复调用相同的工具，如果第一次调用失败，请尝试其他方法或直接给出答案**
+- **限制工具调用次数，最多调用 3-5 次工具**
+- **如果任务简单，优先直接回答而不是调用工具**
 
-# 输出格式
-请严格按照以下JSON格式返回计划，不要包含任何其他文字：
-{{"answer": "基于工具执行结果的最终答案"}}
-""")
+请开始执行任务。""")
 
 
 summary_response_prompt = PromptTemplate.from_template("""# 角色

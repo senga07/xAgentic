@@ -92,6 +92,55 @@ app.post('/api/chat/mcp/configs', async (req, res) => {
   }
 });
 
+// 代理用户反馈API
+app.post('/api/chat/feedback', async (req, res) => {
+  try {
+    const response = await axios.post(`${BACKEND_URL}/api/chat/feedback`, req.body);
+    res.json(response.data);
+  } catch (error) {
+    console.error('处理用户反馈失败:', error.message);
+    res.status(500).json({ 
+      error: '处理用户反馈失败',
+      details: error.message 
+    });
+  }
+});
+
+// 代理流式用户反馈API
+app.post('/api/chat/feedback-stream', async (req, res) => {
+  try {
+    const response = await axios.post(`${BACKEND_URL}/api/chat/feedback-stream`, req.body, {
+      responseType: 'stream'
+    });
+    
+    // 设置流式响应头
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    
+    // 转发流数据
+    response.data.on('data', (chunk) => {
+      res.write(chunk);
+    });
+    
+    response.data.on('end', () => {
+      res.end();
+    });
+    
+    response.data.on('error', (error) => {
+      console.error('流式反馈响应错误:', error);
+      res.status(500).end();
+    });
+    
+  } catch (error) {
+    console.error('流式反馈API错误:', error.message);
+    res.status(500).json({ 
+      error: '无法连接到流式反馈服务',
+      details: error.message 
+    });
+  }
+});
+
 
 
 // 服务静态文件

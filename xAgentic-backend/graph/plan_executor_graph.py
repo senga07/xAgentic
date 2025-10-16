@@ -6,15 +6,14 @@
 2. 循环执行：检查节点不确定性 → 确认（如需要）→ 执行节点
 3. 生成最终回复
 """
-from typing import List, TypedDict, Literal, Dict, Any
-from langchain_core.messages import AIMessage, HumanMessage
+from typing import List, TypedDict
+
+from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
-from langgraph.types import interrupt, Command
-import time
-from datetime import datetime
+from langgraph.types import interrupt
 
 from prompt.plan_executor_prompts import *
 from services.service_manager import service_manager
@@ -23,7 +22,6 @@ from tools.search_tools import *
 from tools.time_tools import *
 from utils import json_utils
 from utils.custom_serializer import CustomSerializer
-from utils.langsmith_utils import trace_langsmith
 from utils.unified_logger import get_logger, log_error
 
 
@@ -49,6 +47,11 @@ class PlanExecutorState(TypedDict):
 
     # 元数据
     timing_info: Dict[str, Any]
+    
+    # Human-in-the-loop 相关字段
+    pending_confirmation: Dict[str, Any]  # 当前等待确认的步骤信息
+    user_feedback: str  # 用户的反馈信息
+    is_replanning: bool  # 是否正在重新规划
 
 
 
@@ -97,24 +100,35 @@ class PlanExecutorGraph:
         self.logger.info("PlanExecutorGraph 实例创建完成")
 
     def _build_graph(self) -> CompiledStateGraph:
-        """构建循环式执行图"""
+        """构建循环式执行图 - 每个节点执行前都检查不确定性"""
         workflow = StateGraph(PlanExecutorState)
 
         # 添加节点
         workflow.add_node("analyze_and_plan", self._analyze_and_plan)
+        workflow.add_node("check_node_uncertainty", self._check_node_uncertainty)
         workflow.add_node("execute_node", self._execute_node)
         workflow.add_node("generate_response", self._generate_response)
 
         # 设置流程
         workflow.set_entry_point("analyze_and_plan")
-        workflow.add_edge("analyze_and_plan", "execute_node")
+        workflow.add_edge("analyze_and_plan", "check_node_uncertainty")
+        
+        # 不确定性检查后的条件边
+        workflow.add_conditional_edges(
+            "check_node_uncertainty",
+            self._after_uncertainty_check,
+            {
+                "execute_node": "execute_node",  # 执行当前节点
+                "complete": "generate_response"  # 所有节点执行完成
+            }
+        )
 
         # 执行节点后的条件边
         workflow.add_conditional_edges(
             "execute_node",
             self._after_execute_node,
             {
-                "next_node": "execute_node",  # 继续下一个节点
+                "next_node": "check_node_uncertainty",  # 检查下一个节点的不确定性
                 "complete": "generate_response"  # 所有节点执行完成
             }
         )
@@ -123,7 +137,7 @@ class PlanExecutorGraph:
 
         return workflow.compile(checkpointer=PlanExecutorGraph._shared_checkpointer)
 
-    @trace_langsmith(name="analyze_and_plan", run_type="llm")
+    # @trace_langsmith(name="analyze_and_plan", run_type="llm")
     def _analyze_and_plan(self, state: PlanExecutorState) -> PlanExecutorState:
         """任务分析和计划创建节点"""
         try:
@@ -168,85 +182,141 @@ class PlanExecutorGraph:
             state["status"] = "failed"
             return state
 
+    # @trace_langsmith(name="check_node_uncertainty", run_type="chain")
+    def _check_node_uncertainty(self, state: PlanExecutorState) -> PlanExecutorState:
+        """检查当前节点是否需要用户确认"""
 
+        self.logger.info("检查当前节点的不确定性")
+        execution_plan = state.get("execution_plan")
+        current_step = state.get("current_step")
 
-    @trace_langsmith(name="execute_node", run_type="chain")
-    def _execute_node(self, state: PlanExecutorState) -> PlanExecutorState:
-        """执行当前节点"""
-        try:
-            start_time = time.time()
-            execution_plan = state.get("execution_plan")
-            current_step = state.get("current_step")
+        # 检查是否所有节点都已处理完成
+        if current_step >= len(execution_plan):
+            self.logger.info("所有节点执行完成")
+            state["status"] = "all_nodes_completed"
+            return state
 
-            # 检查是否所有节点都已处理完成
-            if current_step >= len(execution_plan):
-                self.logger.info("所有节点执行完成")
-                state["status"] = "all_nodes_completed"
-                return state
+        # 获取当前要检查的节点
+        current_node = execution_plan[current_step]
 
-            # 获取当前要执行的节点
-            current_node = execution_plan[current_step]
+        # 如果节点需要确认且没有用户反馈，则中断等待确认
+        if current_node.get("requires_confirmation") and not state.get("user_feedback"):
+            self.logger.info(f"节点 {current_step + 1} 需要用户确认")
+
+            # 准备确认信息
+            confirmation_info = {
+                "type": "confirmation_required",
+                "current_step": current_step + 1,
+                "total_steps": len(execution_plan),
+                "step_info": {
+                    "step": current_node.get("step"),
+                    "description": current_node.get("description"),
+                    "uncertainty_reason": current_node.get("uncertainty_reason", ""),
+                    "expected_result": current_node.get("expected_result")
+                }
+            }
+
+            # 保存待确认信息到状态
+            state["pending_confirmation"] = confirmation_info
+            state["is_replanning"] = True
 
             # 添加流式输出
             self._add_streaming_chunk(
                 state,
-                "executing_node",
-                f"🔄 正在执行节点 {current_step + 1}/{len(execution_plan)}: {current_node.get('description', '')}",
-                {"node_index": current_step, "total_nodes": len(execution_plan)}
+                "uncertainty_detected",
+                f"⚠️ 步骤 {current_step + 1} 需要确认: {current_node.get('uncertainty_reason', '')}",
+                confirmation_info
             )
+            interrupt(confirmation_info)
 
-            # 执行当前节点
-            node_result = self._do_execute(current_node, current_step)
+        else:
+            self.logger.info(f"节点 {current_step + 1} 无需确认，可以直接执行")
+            state["pending_confirmation"] = {}
 
-            # 更新状态
-            state["step_results"].append(node_result)
-            state["current_step"] += 1
+        return state
 
-            duration = time.time() - start_time
-            if "timing_info" not in state:
-                state["timing_info"] = {}
-            state["timing_info"][f"node_{current_step + 1}"] = {
-                "duration": round(duration, 2),
-                "timestamp": datetime.now().isoformat()
+    def _after_uncertainty_check(self, state: PlanExecutorState) -> str:
+        """不确定性检查后的条件判断"""
+        if state.get("status") == "all_nodes_completed":
+            return "complete"
+        else:
+            return "execute_node"
+
+
+    # @trace_langsmith(name="execute_node", run_type="chain")
+    def _execute_node(self, state: PlanExecutorState) -> PlanExecutorState:
+        """执行当前节点"""
+
+        start_time = time.time()
+        execution_plan = state.get("execution_plan")
+        current_step = state.get("current_step")
+
+        # 检查是否所有节点都已处理完成
+        if current_step >= len(execution_plan):
+            self.logger.info("所有节点执行完成")
+            state["status"] = "all_nodes_completed"
+            return state
+
+        # 获取当前要执行的节点
+        current_node = execution_plan[current_step]
+        current_node["user_feedback"] = state.get("user_feedback", "")
+
+        # 添加流式输出
+        self._add_streaming_chunk(
+            state,
+            "executing_node",
+            f"🔄 正在执行节点 {current_step + 1}/{len(execution_plan)}: {current_node.get('description', '')}",
+            {"node_index": current_step, "total_nodes": len(execution_plan)}
+        )
+
+        # 执行当前节点
+        node_result = self._do_execute(current_node, current_step)
+
+        # 更新状态
+        state["step_results"].append(node_result)
+        state["current_step"] += 1
+
+        duration = time.time() - start_time
+        if "timing_info" not in state:
+            state["timing_info"] = {}
+        state["timing_info"][f"node_{current_step + 1}"] = {
+            "duration": round(duration, 2),
+            "timestamp": datetime.now().isoformat()
+        }
+
+        # 添加完成状态
+        self._add_streaming_chunk(
+            state,
+            "node_completed",
+            f"✅ 节点 {current_step + 1} 执行完成 (耗时: {duration:.2f}秒)",
+            {
+                "status": node_result.get("status", "completed"),
+                "result": node_result,
+                "step_number": current_step + 1,
+                "execution_result": node_result.get("execution_result", ""),
+                "timing": node_result.get("timing", {})
             }
+        )
 
-            # 添加完成状态
+        # 检查是否有异常
+        if node_result.get('status') == 'failed':
+            self.logger.error(f"节点 {current_step + 1} 执行失败，停止执行")
+            state["status"] = "node_failed"
+            state["error"] = f"节点 {current_step + 1} 执行失败: {node_result.get('execution_result', '')}"
+
             self._add_streaming_chunk(
                 state,
-                "node_completed",
-                f"✅ 节点 {current_step + 1} 执行完成 (耗时: {duration:.2f}秒)",
-                {
-                    "node_index": current_step, 
-                    "result": node_result,
-                    "step_number": current_step + 1,
-                    "execution_result": node_result.get("execution_result", ""),
-                    "timing": node_result.get("timing", {})
-                }
+                "execution_failed",
+                f"❌ 节点 {current_step + 1} 执行失败，停止执行",
+                {"error": state["error"], "failed_node": current_step + 1}
             )
-
-            # 检查是否有异常
-            if node_result.get('status') == 'failed':
-                self.logger.error(f"节点 {current_step + 1} 执行失败，停止执行")
-                state["status"] = "node_failed"
-                state["error"] = f"节点 {current_step + 1} 执行失败: {node_result.get('execution_result', '')}"
-
-                self._add_streaming_chunk(
-                    state,
-                    "execution_failed",
-                    f"❌ 节点 {current_step + 1} 执行失败，停止执行",
-                    {"error": state["error"], "failed_node": current_step + 1}
-                )
-                return state
-
-            state["status"] = "node_completed"
-            self.logger.info(f"节点 {current_step + 1} 执行完成，耗时: {duration:.2f}秒")
             return state
 
-        except Exception as e:
-            log_error(self.logger, e, f"节点执行失败")
-            state["error"] = str(e)
-            state["status"] = "node_failed"
-            return state
+        state["status"] = "node_completed"
+        state["is_replanning"] = False
+        state["pending_confirmation"] = {}
+        self.logger.info(f"节点 {current_step + 1} 执行完成，耗时: {duration:.2f}秒")
+        return state
 
 
     def _after_execute_node(self, state: PlanExecutorState) -> str:
@@ -256,7 +326,7 @@ class PlanExecutorGraph:
         elif state.get("status") == "node_failed":
             return "complete"  # 失败也结束流程
         else:
-            return "next_node"  # 继续下一个节点
+            return "next_node"  # 继续检查下一个节点的不确定性
 
 
     def _do_execute(self, node: Dict[str, Any], node_index: int) -> Dict[str, Any]:
@@ -272,45 +342,81 @@ class PlanExecutorGraph:
                 store=self.store
             )
 
+            # 格式化工具列表
+            tools_list = []
+            for tool in self.all_tools:
+                if hasattr(tool, 'name') and hasattr(tool, 'description'):
+                    tools_list.append(f"- {tool.name}: {tool.description}")
+                else:
+                    tools_list.append(f"- {tool.__name__ if hasattr(tool, '__name__') else str(tool)}")
+            
             prompt = react_prompt.format(
                 description=node.get("description"),
                 expected_result=node.get("expected_result"),
-                tools="\n".join([f"- {t.name}: {t.description}" for t in self.all_tools])
+                user_feedback=node.get("user_feedback"),
+                tools="\n".join(tools_list)
             )
 
             # 执行节点
-            result = agent.invoke({"messages":[{"role": "user", "content": prompt}]},
-                                  config={
-                                      "configurable": {"thread_id": self.thread_id},
-                                      "recursion_limit": 10,
-                                      "max_execution_time": 30,
-                                  }
-                                  )
+            try:
+                result = agent.invoke(
+                    {"messages": [{"role": "user", "content": prompt}]},
+                    config={
+                        "configurable": {"thread_id": self.thread_id},
+                        "recursion_limit": 15,  # 增加递归限制
+                        "max_execution_time": 60,  # 增加执行时间限制
+                    }
+                )
+                self.logger.info(f"节点 {node_index + 1} 执行结果: {type(result)} - {str(result)[:200]}...")
+            except Exception as agent_error:
+                self.logger.warning(f"ReAct Agent 执行失败，使用直接 LLM 调用: {str(agent_error)}")
+                # 回退到直接 LLM 调用
+                from langchain_core.messages import HumanMessage
+                messages = [HumanMessage(content=prompt)]
+                result = self.worker_llm.invoke(messages)
+                self.logger.info(f"直接 LLM 调用结果: {type(result)} - {str(result)[:200]}...")
 
-            # 提取结果 - 修复返回值处理
+            # 提取结果 - 改进返回值处理
             execution_result = "节点执行完成"
-            if result and isinstance(result, dict) and "messages" in result:
-                messages = result["messages"]
-                if messages:
-                    # 查找最后一个AI消息
-                    for msg in reversed(messages):
-                        if hasattr(msg, 'content') and hasattr(msg, '__class__'):
-                            if 'AI' in msg.__class__.__name__ or 'AIMessage' in str(type(msg)):
-                                execution_result = msg.content
-                                break
+            
+            try:
+                if result and isinstance(result, dict):
+                    if "messages" in result:
+                        messages = result["messages"]
+                        if messages:
+                            # 查找最后一个AI消息
+                            for msg in reversed(messages):
+                                if hasattr(msg, 'content'):
+                                    # 检查是否是AI消息
+                                    msg_type = str(type(msg)).lower()
+                                    if 'ai' in msg_type or 'assistant' in msg_type:
+                                        execution_result = msg.content
+                                        break
+                            else:
+                                # 如果没有找到AI消息，使用最后一个消息
+                                last_message = messages[-1]
+                                if hasattr(last_message, 'content'):
+                                    execution_result = last_message.content
+                                else:
+                                    execution_result = str(last_message)
+                    elif "output" in result:
+                        execution_result = str(result["output"])
                     else:
-                        # 如果没有找到AI消息，使用最后一个消息
-                        last_message = messages[-1]
-                        if hasattr(last_message, 'content'):
-                            execution_result = last_message.content
-                        else:
-                            execution_result = str(last_message)
-            elif result and hasattr(result, 'content'):
-                # 如果result直接是消息对象
-                execution_result = result.content
-            elif result:
-                # 其他情况，转换为字符串
-                execution_result = str(result)
+                        execution_result = str(result)
+                elif result and hasattr(result, 'content'):
+                    # 如果result直接是消息对象（直接LLM调用）
+                    execution_result = result.content
+                elif result:
+                    # 其他情况，转换为字符串
+                    execution_result = str(result)
+                    
+                # 如果结果太短或包含错误信息，提供更详细的信息
+                if len(execution_result) < 10 or "sorry" in execution_result.lower():
+                    execution_result = f"任务描述: {node.get('description', '')}\n执行状态: 已完成\n结果: {execution_result}"
+                    
+            except Exception as e:
+                self.logger.error(f"提取执行结果时出错: {str(e)}")
+                execution_result = f"执行完成，但结果提取时出现错误: {str(e)}"
 
             duration = time.time() - start_time
 
@@ -460,157 +566,38 @@ class PlanExecutorGraph:
             chunk["data"] = data
         state["streaming_chunks"].append(chunk)
 
-    async def chat_with_planning_stream(self, thread_id: str, conversation_history: List = None, ):
-        """流式聊天接口 - 支持规划执行模式"""
+
+    async def process_streaming_events(self, events, error_message_prefix="执行失败"):
+        """处理流式事件的公共方法"""
         try:
-            # 初始化状态
-            self.thread_id = thread_id
-            initial_state = {
-                "messages": conversation_history,
-                "task_analysis": "",
-                "execution_plan": [],
-                "current_step": 0,
-                "step_results": [],
-                "final_response": "",
-                "status": "initializing",
-                "error": "",
-                "streaming_chunks": [],
-                "timing_info": {}
-            }
-
-            # 开始执行图
-            config = {"configurable": {"thread_id": self.thread_id}}
-
-            # 流式执行图
-            try:
-                async for event in self.graph.astream_events(initial_state, config=config, version="v1"):
-                    self.logger.info(f"收到event: {event}")
-                    
-                    # 处理流式数据事件 - 这是主要的输出来源
-                    if event["event"] == "on_chain_stream":
-                        chunk = event.get("data", {}).get("chunk", {})
-                        if isinstance(chunk, dict) and "streaming_chunks" in chunk:
-                            # 输出流式块
-                            for streaming_chunk in chunk["streaming_chunks"]:
-                                step_type = streaming_chunk.get("step", "")
-                                if step_type == "node_completed":
-                                    yield {
-                                        "type": "node_result",
-                                        "step": step_type,
-                                        "message": streaming_chunk.get("message", ""),
-                                        "data": streaming_chunk.get("data", {}),
-                                        "node": event.get("name", "unknown")
-                                    }
-                                elif step_type == "completed":
-                                    yield {
-                                        "type": "final_result",
-                                        "step": step_type,
-                                        "message": streaming_chunk.get("message", ""),
-                                        "data": streaming_chunk.get("data", {}),
-                                        "node": event.get("name", "unknown")
-                                    }
-                                else:
-                                    yield {
-                                        "type": "streaming",
-                                        "step": step_type,
-                                        "message": streaming_chunk.get("message", ""),
-                                        "data": streaming_chunk.get("data", {}),
-                                        "node": event.get("name", "unknown")
-                                    }
-                    
-                    # 处理节点完成事件
-                    elif event["event"] == "on_chain_end" and event.get("name") in ["analyze_and_plan", "execute_node", "generate_response"]:
-                        node_name = event["name"]
-                        node_output = event.get("output", {})
-                        self.logger.info(f"处理节点 {node_name} 的输出: {type(node_output)} - {node_output}")
-                        
-                        if isinstance(node_output, dict) and "streaming_chunks" in node_output:
-                            # 输出流式块
-                            for streaming_chunk in node_output["streaming_chunks"]:
-                                # 根据步骤类型设置不同的type
-                                step_type = streaming_chunk.get("step", "")
-                                if step_type == "node_completed":
-                                    yield {
-                                        "type": "node_result",
-                                        "step": step_type,
-                                        "message": streaming_chunk.get("message", ""),
-                                        "data": streaming_chunk.get("data", {}),
-                                        "node": node_name
-                                    }
-                                elif step_type == "completed":
-                                    yield {
-                                        "type": "final_result",
-                                        "step": step_type,
-                                        "message": streaming_chunk.get("message", ""),
-                                        "data": streaming_chunk.get("data", {}),
-                                        "node": node_name
-                                    }
-                                else:
-                                    yield {
-                                        "type": "streaming",
-                                        "step": step_type,
-                                        "message": streaming_chunk.get("message", ""),
-                                        "data": streaming_chunk.get("data", {}),
-                                        "node": node_name
-                                    }
-
-                        # 检查执行完成
-                        if isinstance(node_output, dict) and node_output.get("status") == "completed":
+            async for event in events:
+                self.logger.info(f"收到event: {event['event']} - {event.get('name', 'unknown')}")
+                if event["event"] == "on_chain_stream":
+                    chunk = event.get("data", {}).get("chunk", {})
+                    if isinstance(chunk, dict) and "streaming_chunks" in chunk:
+                        # 输出流式块
+                        for streaming_chunk in chunk["streaming_chunks"]:
+                            step_type = streaming_chunk.get("step", "")
                             yield {
-                                "type": "completed",
-                                "message": "任务执行完成",
-                                "data": {
-                                    "final_response": node_output.get("final_response", ""),
-                                    "step_results": node_output.get("step_results", []),
-                                    "timing_info": node_output.get("timing_info", {})
-                                },
-                                "node": node_name
+                                "step": step_type,
+                                "message": streaming_chunk.get("message", ""),
+                                "data": streaming_chunk.get("data", {}),
+                                "node": event.get("name", "unknown")
                             }
-                            return
-
-                        # 检查执行失败
-                        if isinstance(node_output, dict) and node_output.get("status") == "failed":
-                            yield {
-                                "type": "error",
-                                "message": f"执行失败: {node_output.get('error', '未知错误')}",
-                                "data": {
-                                    "error": node_output.get("error", ""),
-                                    "status": node_output.get("status", "")
-                                },
-                                "node": node_name
-                            }
-                            return
-                            
-            except Exception as e:
-                # 处理异常
-                self.logger.error(f"流式执行异常: {str(e)}")
-                yield {
-                    "type": "error",
-                    "message": f"执行异常: {str(e)}",
-                    "data": {
-                        "error": str(e),
-                        "status": "failed"
-                    },
-                    "node": "error"
-                }
-                return
-
-            # 如果没有明确的完成或失败状态，输出最终结果
-            yield {
-                "type": "completed",
-                "message": "任务执行完成",
-                "data": {
-                    "final_response": "任务已执行完成",
-                    "status": "completed"
-                },
-                "node": "final"
-            }
-
+                    if isinstance(chunk, dict) and "__interrupt__" in chunk:
+                        chunk_interrupt = chunk["__interrupt__"][0]
+                        yield {
+                            "step": "interrupt",
+                            "message": "需要用户确认",
+                            "data": chunk_interrupt.value,
+                            "node": "check_node_uncertainty"
+                        }
+                        return
         except Exception as e:
-            self.logger.error(f"流式聊天执行失败: {str(e)}")
+            self.logger.error(f"流式处理失败: {str(e)}")
             yield {
-                "type": "error",
-                "message": f"执行失败: {str(e)}",
+                "step": "error",
+                "message": f"{error_message_prefix}: {str(e)}",
                 "data": {
                     "error": str(e),
                     "status": "failed"
@@ -618,3 +605,40 @@ class PlanExecutorGraph:
                 "node": "error"
             }
 
+    async def chat_with_planning_stream(self, thread_id: str, conversation_history: List = None, ):
+        """流式聊天接口 - 支持规划执行模式"""
+        # 初始化状态
+        self.thread_id = thread_id
+        initial_state = {
+            "messages": conversation_history,
+            "task_analysis": "",
+            "execution_plan": [],
+            "current_step": 0,
+            "step_results": [],
+            "final_response": "",
+            "status": "initializing",
+            "error": "",
+            "streaming_chunks": [],
+            "timing_info": {},
+            "pending_confirmation": {},
+            "user_feedback": {},
+            "is_replanning": False
+        }
+
+        config = {"configurable": {"thread_id": self.thread_id}}
+        events = self.graph.astream_events(initial_state, config=config, version="v1")
+        
+        async for chunk in self.process_streaming_events(events, error_message_prefix="执行失败"):
+            yield chunk
+
+    def get_current_state(self, config, current_state):
+
+        if not current_state:
+            try:
+                # 从检查点获取最新状态
+                checkpoint_state = self.graph.get_state(config)
+                if checkpoint_state and checkpoint_state.values:
+                    return checkpoint_state.values
+            except Exception as e:
+                self.logger.warning(f"无法从检查点获取状态: {e}")
+        return None
