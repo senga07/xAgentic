@@ -12,7 +12,6 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 class ChatRequest(BaseModel):
     message: str
     conversation_history: Optional[List[str]] = None
-    mcp_configs: Optional[List[Dict[str, Any]]] = None  # MCP服务器配置
 
 class ChatResponse(BaseModel):
     response: str

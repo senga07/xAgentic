@@ -508,49 +508,6 @@
             line-height: 1.4;
         }
 
-        /* MCP配置面板样式 */
-        .config-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .config-overlay.show {
-            display: flex;
-        }
-
-        .config-panel {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-        }
-
-        .config-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #e1e5e9;
-        }
-
-        .config-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #333;
-        }
 
         .close-button {
             background: none;
@@ -583,25 +540,6 @@
             font-size: 16px;
         }
 
-        .mcp-server {
-            border: 1px solid #e1e5e9;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 16px;
-            background: #f8f9fa;
-        }
-
-        .mcp-server-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 12px;
-        }
-
-        .mcp-server-title {
-            font-weight: 600;
-            color: #333;
-        }
 
         .remove-server-btn {
             background: #f44336;
@@ -719,181 +657,13 @@
             transform: translateY(-1px);
         }
 
-        .tool-btn.mcp-tool {
-            background: #667eea;
-            border-color: #667eea;
-            color: white;
-        }
-
-        .tool-btn.mcp-tool:hover {
-            background: #5a6fd8;
-            border-color: #5a6fd8;
-        }
 
         .tool-icon {
             font-size: 16px;
             line-height: 1;
         }
 
-        /* MCP面板样式 - 从输入框上方上拉弹出 */
-        .mcp-overlay {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 0;
-            background: rgba(0, 0, 0, 0.3);
-            display: none;
-            z-index: 1000;
-            transition: height 0.3s ease;
-        }
 
-        .mcp-overlay.show {
-            display: block;
-            height: 100%;
-        }
-
-        .mcp-panel {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            background: white;
-            border-radius: 20px 20px 0 0;
-            padding: 24px;
-            max-height: 60vh;
-            overflow: hidden;
-            box-shadow: 0 -10px 30px rgba(0,0,0,0.2);
-            transform: translateY(100%);
-            transition: transform 0.3s ease;
-        }
-
-        .mcp-overlay.show .mcp-panel {
-            transform: translateY(0);
-        }
-
-        .mcp-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #e1e5e9;
-        }
-
-        .mcp-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #333;
-            margin: 0;
-        }
-
-        .mcp-content {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .mcp-servers-list {
-            margin-bottom: 20px;
-        }
-
-        .mcp-server-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            margin-bottom: 8px;
-            background: #f8f9fa;
-            border: 1px solid #e1e5e9;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .mcp-server-item:hover {
-            background: #f0f4f8;
-            border-color: #667eea;
-        }
-
-        .server-info {
-            flex: 1;
-        }
-
-        .server-name {
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 4px;
-        }
-
-        .server-type {
-            font-size: 12px;
-            color: #666;
-            background: #e1e5e9;
-            padding: 2px 8px;
-            border-radius: 12px;
-            display: inline-block;
-        }
-
-        .server-actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .server-action-btn {
-            background: none;
-            border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s ease;
-        }
-
-        .edit-btn {
-            color: #667eea;
-        }
-
-        .edit-btn:hover {
-            background: #f0f4f8;
-        }
-
-        .delete-btn {
-            color: #f44336;
-        }
-
-        .delete-btn:hover {
-            background: #ffebee;
-        }
-
-        .add-server-section {
-            text-align: center;
-            padding-top: 20px;
-            border-top: 1px solid #e1e5e9;
-        }
-
-        .add-server-btn {
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 12px 24px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .add-server-btn:hover {
-            background: #5a6fd8;
-            transform: translateY(-1px);
-        }
-
-        .add-icon {
-            font-size: 16px;
-            font-weight: bold;
-        }
 
 
 
@@ -936,77 +706,6 @@
             transition: width 0.3s ease;
         }
 
-        /* MCP配置面板样式 */
-        .mcp-config-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 1001;
-        }
-
-        .mcp-config-overlay.show {
-            display: flex;
-        }
-
-        .mcp-config-panel {
-            background: white;
-            border-radius: 12px;
-            padding: 24px;
-            width: 90%;
-            max-width: 600px;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-        }
-
-        .mcp-config-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #e1e5e9;
-        }
-
-        .mcp-config-title {
-            font-size: 20px;
-            font-weight: 600;
-            color: #333;
-            margin: 0;
-        }
-
-        .mcp-config-content {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .config-form {
-            margin-bottom: 20px;
-        }
-
-        .mcp-json-textarea {
-            width: 100%;
-            min-height: 300px !important;
-            padding: 16px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 13px;
-            line-height: 1.4;
-            resize: vertical;
-        }
-
-        .mcp-json-textarea:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
-        }
 
         /* 确认对话框样式 */
         .confirmation-overlay {
@@ -1235,72 +934,15 @@
                 <span class="loading-dots"></span>
             </div>
             
-            <!-- MCP服务列表面板 -->
-            <div class="mcp-overlay" id="mcpOverlay">
-                <div class="mcp-panel">
-                    <div class="mcp-header">
-                        <h2 class="mcp-title">🔨 MCP工具</h2>
-                        <button class="close-button" id="closeMcpBtn">&times;</button>
-                    </div>
-                    
-                    <div class="mcp-content">
-                        <div class="mcp-servers-list" id="mcpServersList">
-                            <!-- MCP服务器列表将在这里显示 -->
-                        </div>
-                        
-                        <div class="add-server-section">
-                            <button class="add-server-btn" id="addServerBtn">
-                                <span class="add-icon">+</span>
-                                添加服务...
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
         
         <!-- 工具条 -->
         <div class="toolbar">
-            <button class="tool-btn mcp-tool" id="mcpToolBtn" title="MCP工具">
-                <span class="tool-icon">🔨</span>
-            </button>
+            <!-- 工具按钮可以在这里添加 -->
         </div>
     </div>
 
 
-    <!-- MCP配置表单面板 -->
-    <div class="mcp-config-overlay" id="mcpConfigOverlay">
-        <div class="mcp-config-panel">
-            <div class="mcp-config-header">
-                <h2 class="mcp-config-title">🔧 配置MCP服务</h2>
-                <button class="close-button" id="closeConfigBtn">&times;</button>
-            </div>
-            
-            <div class="mcp-config-content">
-                <div class="config-form">
-                    <div class="form-group">
-                        <label for="mcpJsonConfig">MCP服务配置 (JSON格式):</label>
-                        <textarea 
-                            id="mcpJsonConfig" 
-                            class="mcp-json-textarea" 
-                            placeholder='请输入MCP服务的JSON配置，例如：
-{
-  "name": "文件系统工具",
-  "connection_type": "stdio",
-  "command": "npx",
-  "args": ["@modelcontextprotocol/server-filesystem", "/path/to/allowed/files"]
-}'
-                        ></textarea>
-                    </div>
-                    
-                    <div class="config-actions">
-                        <button class="btn btn-secondary" id="cancelConfigBtn">取消</button>
-                        <button class="btn btn-primary" id="saveConfigBtn">保存配置</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- 确认对话框 -->
     <div class="confirmation-overlay" id="confirmationOverlay" style="display: none;">
@@ -1334,8 +976,6 @@
                 this.conversationHistory = [];
                 this.currentPlan = null;
                 this.isProcessing = false;
-                this.mcpConfigs = []; // 存储MCP配置
-                this.editingIndex = undefined; // 当前编辑的配置索引
                 this.timingInfo = {}; // 存储时间统计信息
                 this.processedSteps = new Set(); // 跟踪已处理的步骤，避免重复输出
                 this.currentThreadId = "user01"; // 当前线程ID
@@ -1353,15 +993,6 @@
                     }
                 });
                 
-                // MCP工具相关事件监听器
-                document.getElementById('mcpToolBtn').addEventListener('click', () => this.showMCPPanel());
-                document.getElementById('closeMcpBtn').addEventListener('click', () => this.hideMCPPanel());
-                document.getElementById('addServerBtn').addEventListener('click', () => this.showConfigPanel());
-                
-                // MCP配置面板事件监听器
-                document.getElementById('closeConfigBtn').addEventListener('click', () => this.hideConfigPanel());
-                document.getElementById('cancelConfigBtn').addEventListener('click', () => this.hideConfigPanel());
-                document.getElementById('saveConfigBtn').addEventListener('click', () => this.saveMCPServer());
 
                 // 人工确认相关事件监听器
                 document.getElementById('cancelBtn').addEventListener('click', () => this.handleConfirmationAction('cancel'));
@@ -1375,21 +1006,8 @@
                     }
                 });
 
-                // 点击遮罩层关闭面板
-                document.getElementById('mcpOverlay').addEventListener('click', (e) => {
-                    if (e.target.id === 'mcpOverlay') {
-                        this.hideMCPPanel();
-                    }
-                });
-                
-                document.getElementById('mcpConfigOverlay').addEventListener('click', (e) => {
-                    if (e.target.id === 'mcpConfigOverlay') {
-                        this.hideConfigPanel();
-                    }
-                });
 
                 this.checkBackendStatus();
-                this.loadMCPConfigs(); // 加载MCP配置
             }
             
             async checkBackendStatus() {
@@ -1446,8 +1064,7 @@
                     },
                     body: JSON.stringify({
                         message: message,
-                        conversation_history: this.conversationHistory,
-                        mcp_configs: this.mcpConfigs
+                        conversation_history: this.conversationHistory
                     })
                 });
                 
@@ -2097,137 +1714,7 @@
                 this.planningContent.scrollTop = this.planningContent.scrollHeight;
             }
 
-            // MCP工具相关方法
-            showMCPPanel() {
-                document.getElementById('mcpOverlay').classList.add('show');
-                this.renderMCPServers();
-            }
 
-            hideMCPPanel() {
-                document.getElementById('mcpOverlay').classList.remove('show');
-            }
-
-            async loadMCPConfigs() {
-                try {
-                    const response = await fetch('/api/chat/mcp/configs');
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    const data = await response.json();
-                    this.mcpConfigs = data.configs || [];
-                } catch (error) {
-                    console.error('加载MCP配置失败:', error);
-                    this.mcpConfigs = [];
-                }
-            }
-
-            async saveMCPConfigs() {
-                try {
-                    const response = await fetch('/api/chat/mcp/configs', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            configs: this.mcpConfigs
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    this.addStatusMessage('✅ MCP配置已保存', 'success');
-                } catch (error) {
-                    console.error('保存MCP配置失败:', error);
-                    this.addStatusMessage(`❌ 保存MCP配置失败: ${error.message}`, 'error');
-                }
-            }
-
-            renderMCPServers() {
-                const serversList = document.getElementById('mcpServersList');
-                serversList.innerHTML = '';
-                
-                if (this.mcpConfigs.length === 0) {
-                    serversList.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">暂无MCP服务</div>';
-                    return;
-                }
-                
-                this.mcpConfigs.forEach((config, index) => {
-                    const serverItem = document.createElement('div');
-                    serverItem.className = 'mcp-server-item';
-                    serverItem.innerHTML = `
-                        <div class="server-info">
-                            <div class="server-name">${config.name || '未命名服务'}</div>
-                            <div class="server-type">${config.connection_type || 'stdio'}</div>
-                        </div>
-                        <div class="server-actions">
-                            <button class="server-action-btn edit-btn" onclick="app.editMCPServer(${index})">编辑</button>
-                            <button class="server-action-btn delete-btn" onclick="app.deleteMCPServer(${index})">删除</button>
-                        </div>
-                    `;
-                    
-                    serversList.appendChild(serverItem);
-                });
-            }
-
-            showConfigPanel() {
-                this.editingIndex = undefined; // 清除编辑状态
-                document.getElementById('mcpConfigOverlay').classList.add('show');
-                document.getElementById('mcpJsonConfig').value = '';
-            }
-
-            hideConfigPanel() {
-                document.getElementById('mcpConfigOverlay').classList.remove('show');
-            }
-
-            saveMCPServer() {
-                const jsonConfig = document.getElementById('mcpJsonConfig').value.trim();
-                if (!jsonConfig) {
-                    alert('请输入MCP服务配置');
-                    return;
-                }
-
-                try {
-                    const config = JSON.parse(jsonConfig);
-                    
-                    if (this.editingIndex !== undefined) {
-                        // 编辑现有配置
-                        this.mcpConfigs[this.editingIndex] = config;
-                        this.editingIndex = undefined;
-                        this.addStatusMessage('✅ MCP服务配置已更新', 'success');
-                    } else {
-                        // 添加新配置
-                        this.mcpConfigs.push(config);
-                        this.addStatusMessage('✅ MCP服务配置已保存', 'success');
-                    }
-                    
-                    this.saveMCPConfigs();
-                    this.renderMCPServers();
-                    this.hideConfigPanel();
-                } catch (error) {
-                    alert('JSON格式错误，请检查配置格式');
-                    console.error('JSON解析错误:', error);
-                }
-            }
-
-            editMCPServer(index) {
-                const config = this.mcpConfigs[index];
-                document.getElementById('mcpJsonConfig').value = JSON.stringify(config, null, 2);
-                document.getElementById('mcpConfigOverlay').classList.add('show');
-                
-                // 保存当前编辑的索引
-                this.editingIndex = index;
-            }
-
-            deleteMCPServer(index) {
-                if (confirm('确定要删除这个MCP服务吗？')) {
-                    this.mcpConfigs.splice(index, 1);
-                    this.saveMCPConfigs();
-                    this.renderMCPServers();
-                }
-            }
 
             // Human-in-the-loop 相关方法
             handleInterrupt(data) {
