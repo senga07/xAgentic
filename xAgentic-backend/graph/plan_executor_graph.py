@@ -8,7 +8,6 @@
 """
 from typing import List, TypedDict
 
-from langchain_core.messages import AIMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
@@ -22,6 +21,7 @@ from tools.search_tools import *
 from tools.time_tools import *
 from utils import json_utils
 from utils.custom_serializer import CustomSerializer
+from utils.langsmith_utils import trace_langsmith
 from utils.unified_logger import get_logger, log_error
 
 
@@ -47,11 +47,6 @@ class PlanExecutorState(TypedDict):
 
     # 元数据
     timing_info: Dict[str, Any]
-    
-    # Human-in-the-loop 相关字段
-    pending_confirmation: Dict[str, Any]  # 当前等待确认的步骤信息
-    user_feedback: str  # 用户的反馈信息
-    is_replanning: bool  # 是否正在重新规划
 
 
 
@@ -105,30 +100,19 @@ class PlanExecutorGraph:
 
         # 添加节点
         workflow.add_node("analyze_and_plan", self._analyze_and_plan)
-        workflow.add_node("check_node_uncertainty", self._check_node_uncertainty)
-        workflow.add_node("execute_node", self._execute_node)
+        workflow.add_node("check_and_execute_node", self._check_and_execute_node)
         workflow.add_node("generate_response", self._generate_response)
 
         # 设置流程
         workflow.set_entry_point("analyze_and_plan")
-        workflow.add_edge("analyze_and_plan", "check_node_uncertainty")
+        workflow.add_edge("analyze_and_plan", "check_and_execute_node")
         
-        # 不确定性检查后的条件边
+        # 检查并执行节点后的条件边
         workflow.add_conditional_edges(
-            "check_node_uncertainty",
-            self._after_uncertainty_check,
+            "check_and_execute_node",
+            self._after_check_and_execute,
             {
-                "execute_node": "execute_node",  # 执行当前节点
-                "complete": "generate_response"  # 所有节点执行完成
-            }
-        )
-
-        # 执行节点后的条件边
-        workflow.add_conditional_edges(
-            "execute_node",
-            self._after_execute_node,
-            {
-                "next_node": "check_node_uncertainty",  # 检查下一个节点的不确定性
+                "next_node": "check_and_execute_node",  # 继续检查下一个节点
                 "complete": "generate_response"  # 所有节点执行完成
             }
         )
@@ -137,7 +121,7 @@ class PlanExecutorGraph:
 
         return workflow.compile(checkpointer=PlanExecutorGraph._shared_checkpointer)
 
-    # @trace_langsmith(name="analyze_and_plan", run_type="llm")
+    @trace_langsmith(name="analyze_and_plan")
     def _analyze_and_plan(self, state: PlanExecutorState) -> PlanExecutorState:
         """任务分析和计划创建节点"""
         try:
@@ -182,72 +166,11 @@ class PlanExecutorGraph:
             state["status"] = "failed"
             return state
 
-    # @trace_langsmith(name="check_node_uncertainty", run_type="chain")
-    def _check_node_uncertainty(self, state: PlanExecutorState) -> PlanExecutorState:
-        """检查当前节点是否需要用户确认"""
 
-        self.logger.info("检查当前节点的不确定性")
-        execution_plan = state.get("execution_plan")
-        current_step = state.get("current_step")
-
-        # 检查是否所有节点都已处理完成
-        if current_step >= len(execution_plan):
-            self.logger.info("所有节点执行完成")
-            state["status"] = "all_nodes_completed"
-            return state
-
-        # 获取当前要检查的节点
-        current_node = execution_plan[current_step]
-
-        # 如果节点需要确认且没有用户反馈，则中断等待确认
-        if current_node.get("requires_confirmation") and not state.get("user_feedback"):
-            self.logger.info(f"节点 {current_step + 1} 需要用户确认")
-
-            # 准备确认信息
-            confirmation_info = {
-                "type": "confirmation_required",
-                "current_step": current_step + 1,
-                "total_steps": len(execution_plan),
-                "step_info": {
-                    "step": current_node.get("step"),
-                    "description": current_node.get("description"),
-                    "uncertainty_reason": current_node.get("uncertainty_reason", ""),
-                    "expected_result": current_node.get("expected_result")
-                }
-            }
-
-            # 保存待确认信息到状态
-            state["pending_confirmation"] = confirmation_info
-            state["is_replanning"] = True
-
-            # 添加流式输出
-            self._add_streaming_chunk(
-                state,
-                "uncertainty_detected",
-                f"⚠️ 步骤 {current_step + 1} 需要确认: {current_node.get('uncertainty_reason', '')}",
-                confirmation_info
-            )
-            interrupt(confirmation_info)
-
-        else:
-            self.logger.info(f"节点 {current_step + 1} 无需确认，可以直接执行")
-            state["pending_confirmation"] = {}
-
-        return state
-
-    def _after_uncertainty_check(self, state: PlanExecutorState) -> str:
-        """不确定性检查后的条件判断"""
-        if state.get("status") == "all_nodes_completed":
-            return "complete"
-        else:
-            return "execute_node"
-
-
-    # @trace_langsmith(name="execute_node", run_type="chain")
-    def _execute_node(self, state: PlanExecutorState) -> PlanExecutorState:
+    @trace_langsmith(name="check_and_execute_node")
+    def _check_and_execute_node(self, state: PlanExecutorState) -> PlanExecutorState:
         """执行当前节点"""
 
-        start_time = time.time()
         execution_plan = state.get("execution_plan")
         current_step = state.get("current_step")
 
@@ -257,25 +180,24 @@ class PlanExecutorGraph:
             state["status"] = "all_nodes_completed"
             return state
 
-        # 获取当前要执行的节点
+        start_time = time.time()
+
+        # 获取当前要处理的节点
         current_node = execution_plan[current_step]
-        current_node["user_feedback"] = state.get("user_feedback", "")
-
-        # 添加流式输出
-        self._add_streaming_chunk(
-            state,
-            "executing_node",
-            f"🔄 正在执行节点 {current_step + 1}/{len(execution_plan)}: {current_node.get('description', '')}",
-            {"node_index": current_step, "total_nodes": len(execution_plan)}
-        )
-
-        # 执行当前节点
+        # 检查节点是否需要补充信息
+        self.check_node(current_node, current_step, execution_plan, state)
+        # 执行节点
         node_result = self._do_execute(current_node, current_step)
-
+        
         # 更新状态
         state["step_results"].append(node_result)
         state["current_step"] += 1
 
+        return self.process_result(current_step, start_time, node_result, state)
+
+    def process_result(self, current_step, start_time, node_result, state):
+
+        # 处理执行结果
         duration = time.time() - start_time
         if "timing_info" not in state:
             state["timing_info"] = {}
@@ -284,21 +206,7 @@ class PlanExecutorGraph:
             "timestamp": datetime.now().isoformat()
         }
 
-        # 添加完成状态
-        self._add_streaming_chunk(
-            state,
-            "node_completed",
-            f"✅ 节点 {current_step + 1} 执行完成 (耗时: {duration:.2f}秒)",
-            {
-                "status": node_result.get("status", "completed"),
-                "result": node_result,
-                "step_number": current_step + 1,
-                "execution_result": node_result.get("execution_result", ""),
-                "timing": node_result.get("timing", {})
-            }
-        )
-
-        # 检查是否有异常
+        # 检查执行结果
         if node_result.get('status') == 'failed':
             self.logger.error(f"节点 {current_step + 1} 执行失败，停止执行")
             state["status"] = "node_failed"
@@ -312,21 +220,59 @@ class PlanExecutorGraph:
             )
             return state
 
+        # 执行成功
         state["status"] = "node_completed"
-        state["is_replanning"] = False
-        state["pending_confirmation"] = {}
+        self._add_streaming_chunk(
+            state,
+            "node_completed",
+            f"✅ 节点 {current_step + 1} 执行完成 (耗时: {duration:.2f}秒)",
+            {
+                "status": node_result.get("status", "completed"),
+                "result": node_result,
+                "step_number": current_step + 1,
+                "execution_result": node_result.get("execution_result", ""),
+                "timing": node_result.get("timing", {})
+            }
+        )
         self.logger.info(f"节点 {current_step + 1} 执行完成，耗时: {duration:.2f}秒")
         return state
 
+    def check_node(self, current_node, current_step, execution_plan, state):
 
-    def _after_execute_node(self, state: PlanExecutorState) -> str:
-        """执行节点后的条件判断"""
+        if current_node.get("requires_confirmation"):
+            self.logger.info(f"节点 {current_step + 1} 需要用户确认")
+
+            # 准备确认信息并中断
+            confirmation_info = {
+                "type": "confirmation_required",
+                "current_step": current_step + 1,
+                "total_steps": len(execution_plan),
+                "step_info": {
+                    "step": current_node.get("step"),
+                    "description": current_node.get("description"),
+                    "uncertainty_reason": current_node.get("uncertainty_reason"),
+                    "expected_result": current_node.get("expected_result")
+                }
+            }
+            # 中断等待用户输入
+            current_node["user_feedback"] = interrupt(confirmation_info)
+
+        self._add_streaming_chunk(
+            state,
+            "executing_node",
+            f"🔄 正在执行节点 {current_step + 1}/{len(execution_plan)}: {current_node.get('description')}。补充信息：{current_node.get('user_feedback')}",
+            {"node_index": current_step, "total_nodes": len(execution_plan)}
+        )
+
+
+    def _after_check_and_execute(self, state: PlanExecutorState) -> str:
+        """检查并执行节点后的条件判断"""
         if state.get("status") == "all_nodes_completed":
             return "complete"
         elif state.get("status") == "node_failed":
             return "complete"  # 失败也结束流程
         else:
-            return "next_node"  # 继续检查下一个节点的不确定性
+            return "next_node"  # 继续检查下一个节点
 
 
     def _do_execute(self, node: Dict[str, Any], node_index: int) -> Dict[str, Any]:
@@ -431,11 +377,9 @@ class PlanExecutorGraph:
                     "duration": round(duration, 2)
                 }
             }
-
         except Exception as e:
             end_time = time.time()
             duration = end_time - start_time
-
             return {
                 "step": node_index + 1,
                 "execution_result": f"节点执行失败: {str(e)}",
@@ -448,6 +392,7 @@ class PlanExecutorGraph:
                     "duration": round(duration, 2)
                 }
             }
+
 
     def _generate_response(self, state: PlanExecutorState) -> PlanExecutorState:
         """生成最终回复"""
@@ -620,9 +565,6 @@ class PlanExecutorGraph:
             "error": "",
             "streaming_chunks": [],
             "timing_info": {},
-            "pending_confirmation": {},
-            "user_feedback": {},
-            "is_replanning": False
         }
 
         config = {"configurable": {"thread_id": self.thread_id}}

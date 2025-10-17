@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from langgraph.types import Command
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -94,15 +95,11 @@ async def handle_user_feedback_stream(request: FeedbackRequest):
         
         # 更新图状态
         config = {"configurable": {"thread_id": request.thread_id}}
-        plan_executor_graph.graph.update_state(
-            config=config,
-            values={"user_feedback": request.feedback, "is_replanning" : False}
-        )
         
         # 恢复流式执行
         async def generate_continuation_stream():
             try:
-                events = plan_executor_graph.graph.astream_events(None, config=config, version="v1")
+                events = plan_executor_graph.graph.astream_events(Command(resume=request.feedback), config=config, version="v1")
                 async for chunk in plan_executor_graph.process_streaming_events(
                     events, error_message_prefix="恢复执行失败"
                 ):

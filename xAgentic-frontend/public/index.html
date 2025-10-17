@@ -2241,22 +2241,6 @@
                 this.addStatusMessage(data.message, 'warning');
             }
 
-            handleReplanning(data) {
-                console.log('处理重新规划事件:', data);
-                this.addStatusMessage(data.message, 'success');
-                
-                // 更新计划显示
-                if (data.data && data.data.execution_plan) {
-                    this.displayPlan(data.data);
-                }
-            }
-
-            handleCancelled(data) {
-                console.log('处理取消事件:', data);
-                this.addStatusMessage(data.message, 'error');
-                this.hideConfirmationDialog();
-            }
-
             showConfirmationDialog(confirmationData) {
                 const content = document.getElementById('confirmationContent');
                 
