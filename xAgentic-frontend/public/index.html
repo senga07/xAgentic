@@ -935,11 +935,7 @@
             </div>
             
         </div>
-        
-        <!-- 工具条 -->
-        <div class="toolbar">
-            <!-- 工具按钮可以在这里添加 -->
-        </div>
+
     </div>
 
 
@@ -1063,8 +1059,7 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        message: message,
-                        conversation_history: this.conversationHistory
+                        message: message
                     })
                 });
                 
@@ -1103,7 +1098,7 @@
                 }
 
                 switch (data.step) {
-                    case 'planning':
+                    case 'plan':
                         this.displayPlan(data.data);
                         break;
                     case 'executing_node':
@@ -1160,16 +1155,7 @@
                 // 在聊天区域也显示执行结果摘要
                 this.addExecutionResultToChat(stepNumber, result);
             }
-            
-            handleFinalResult(data) {
-                // 处理最终结果
-                this.handleComplete(data.data);
-            }
-            
-            
-            updateStatusMessage(message) {
-                this.addStatusMessage(message);
-            }
+
             
             displayPlan(planData) {
                 this.currentPlan = planData;
@@ -1412,116 +1398,8 @@
                 });
             }
             
-            handleTimingInfo(data) {
-                // 存储时间统计信息
-                if (data.timing) {
-                    if (data.step_number) {
-                        // 步骤时间统计
-                        this.timingInfo[`step_${data.step_number}`] = data.timing;
-                    } else {
-                        // 阶段时间统计
-                        const phaseName = data.step || 'unknown';
-                        this.timingInfo[phaseName] = data.timing;
-                    }
-                }
-                
-                // 显示时间统计消息
-                this.addStatusMessage(data.message, 'timing');
-                
-                // 如果是总时间统计，显示详细的时间面板
-                if (data.step === 'total_timing' && data.timing) {
-                    this.displayTimingSummary(data.timing);
-                }
-            }
             
-            displayTimingSummary(totalTiming) {
-                // 创建时间统计面板
-                const timingPanel = document.createElement('div');
-                timingPanel.className = 'timing-display';
-                
-                // 计算各阶段时间
-                const phaseTimes = [];
-                const stepTimes = [];
-                
-                for (const [key, timing] of Object.entries(this.timingInfo)) {
-                    if (key.startsWith('step_')) {
-                        stepTimes.push({
-                            name: `步骤 ${key.replace('step_', '')}`,
-                            duration: timing.duration
-                        });
-                    } else if (key !== 'total') {
-                        phaseTimes.push({
-                            name: this.getPhaseDisplayName(key),
-                            duration: timing.duration
-                        });
-                    }
-                }
-                
-                timingPanel.innerHTML = `
-                    <div class="timing-header">
-                        <span>⏱️</span>
-                        <span>执行时间统计</span>
-                    </div>
-                    <div class="timing-stats">
-                        <div class="timing-stat">
-                            <div class="timing-stat-label">总耗时</div>
-                            <div class="timing-stat-value">${totalTiming.duration}秒</div>
-                        </div>
-                        <div class="timing-stat">
-                            <div class="timing-stat-label">执行阶段</div>
-                            <div class="timing-stat-value">${totalTiming.phases}个</div>
-                        </div>
-                        <div class="timing-stat">
-                            <div class="timing-stat-label">执行步骤</div>
-                            <div class="timing-stat-value">${totalTiming.steps}个</div>
-                        </div>
-                    </div>
-                `;
-                
-                // 添加各阶段时间详情
-                if (phaseTimes.length > 0) {
-                    const phasesDiv = document.createElement('div');
-                    phasesDiv.style.marginTop = '10px';
-                    phasesDiv.innerHTML = '<strong>各阶段耗时:</strong>';
-                    
-                    phaseTimes.forEach(phase => {
-                        const phaseDiv = document.createElement('div');
-                        phaseDiv.className = 'phase-timing';
-                        phaseDiv.innerHTML = `${phase.name}: ${phase.duration}秒`;
-                        phasesDiv.appendChild(phaseDiv);
-                    });
-                    
-                    timingPanel.appendChild(phasesDiv);
-                }
-                
-                // 添加步骤时间详情
-                if (stepTimes.length > 0) {
-                    const stepsDiv = document.createElement('div');
-                    stepsDiv.style.marginTop = '10px';
-                    stepsDiv.innerHTML = '<strong>各步骤耗时:</strong>';
-                    
-                    stepTimes.forEach(step => {
-                        const stepDiv = document.createElement('div');
-                        stepDiv.className = 'step-timing';
-                        stepDiv.innerHTML = `${step.name}: ${step.duration}秒`;
-                        stepsDiv.appendChild(stepDiv);
-                    });
-                    
-                    timingPanel.appendChild(stepsDiv);
-                }
-                
-                this.planningContent.appendChild(timingPanel);
-                this.scrollToBottom();
-            }
             
-            getPhaseDisplayName(phaseKey) {
-                const phaseNames = {
-                    'task_analysis': '任务分析',
-                    'plan_creation': '计划创建',
-                    'response_generation': '回复生成'
-                };
-                return phaseNames[phaseKey] || phaseKey;
-            }
             
             handleError(message) {
                 this.addStatusMessage(message, 'error');
@@ -1581,9 +1459,6 @@
                 }
                 
                 this.statusIndicator.className = 'status-indicator';
-                
-                // 显示完成状态
-                this.addStatusMessage('🎉 任务执行完成！', 'success');
                 
                 // 如果有时间统计信息，更新本地存储
                 if (data.timing_info) {
@@ -1812,7 +1687,6 @@
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            thread_id: this.currentThreadId,
                             action: action,
                             feedback: feedback
                         })

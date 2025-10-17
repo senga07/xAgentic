@@ -8,7 +8,7 @@ _SUPPORTED_PROVIDERS = {
 }
 
 
-class Memory:
+class Embeddings:
     def __init__(self, embedding_provider: str, model: str, **embedding_kwargs: Any):
         settings = get_settings()
         _embeddings = None
@@ -18,7 +18,7 @@ class Memory:
                 _embeddings = AzureOpenAIEmbeddings(
                     model=model,
                     azure_endpoint=settings.azure_endpoint,
-                    openai_api_key=settings.azure_openai_api_key,
+                    api_key=settings.azure_openai_api_key,
                     openai_api_version=settings.azure_openai_api_version,
                     **embedding_kwargs,
                 )

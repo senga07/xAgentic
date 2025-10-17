@@ -33,13 +33,6 @@ class Config:
         self.strategic_llm_provider, self.strategic_llm_model = self.parse_llm(settings.strategic_llm)
         self.coding_llm_provider, self.coding_llm_model = self.parse_llm(settings.coding_llm)
         self.embedding_provider, self.embedding_model = self.parse_llm(settings.embedding)
-  
-        # 设置LLM参数
-        # self.llm_kwargs = {
-        #     "max_tokens": self.model_max_tokens,
-        #     "temperature": self.model_temperature
-        # }
-
 
 
     @staticmethod

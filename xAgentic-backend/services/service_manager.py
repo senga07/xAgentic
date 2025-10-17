@@ -14,6 +14,9 @@ from mcp_.client import MCPClientManager
 from mcp_.manager import mcp_manager
 from utils.langsmith_utils import langsmith_manager
 from utils.unified_logger import get_logger
+from langgraph.store.memory import InMemoryStore
+from memory.embeddings import Embeddings
+from langgraph.store.base import IndexConfig
 
 
 class ServiceManager:
@@ -57,18 +60,10 @@ class ServiceManager:
             # 4. 初始化mcp工具
             self._initialize_mcp_tools()
 
-            from langgraph.store.memory import InMemoryStore
-            from memory.embeddings import Memory
-            embedding = Memory(self.config.embedding_provider, self.config.embedding_model)
-            self.store = InMemoryStore(
-                index={
-                    "dims": 1024,
-                    "embed": embedding,
-                }
-            )
+            embedding = Embeddings(self.config.embedding_provider, self.config.embedding_model).get_embeddings()
+            self.store = InMemoryStore(index=IndexConfig(dims=1024,embed = embedding))
             self.logger.info("服务管理器初始化完成")
             return True
-            
         except Exception as e:
             self.logger.error(f"服务初始化失败: {e}")
             return False
