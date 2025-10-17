@@ -8,7 +8,7 @@ from mcp_.manager import mcp_manager
 router = APIRouter(prefix="/api/mcp", tags=["mcp"])
 
 class MCPConfigRequest(BaseModel):
-    configs: List[Dict[str, Any]]
+    configs: Dict[str, Dict[str, Any]]
 
 @router.get("/configs")
 async def get_mcp_configs():

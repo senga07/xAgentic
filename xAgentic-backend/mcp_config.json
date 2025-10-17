@@ -1,14 +1,10 @@
 {
-    "mcp_server": [
-        {
-            "name": "file-system-mcp",
-            "config": {
-                "command": "/Users/senga/go/bin/mcp-filesystem-server",
-                "args": [
-                    "/Users/senga/Downloads/tmp/xAgenticFile/upload",
-                    "/Users/senga/Downloads/tmp/xAgenticFile/download"
-                ]
-            }
-        }
-    ]
+    "file-system-mcp": {
+        "command": "/Users/senga/go/bin/mcp-filesystem-server",
+        "args": [
+            "/Users/senga/Downloads/tmp/xAgenticFile/upload",
+            "/Users/senga/Downloads/tmp/xAgenticFile/download"
+        ],
+        "transport": "stdio"
+    }
 }

@@ -139,26 +139,11 @@ class ServiceManager:
             if len(mcp_configs) > 0:
                 self.mcp_client_manager = MCPClientManager(mcp_configs)
 
-                import asyncio
+                import concurrent.futures
                 try:
-                    # 检查是否已有事件循环
-                    try:
-                        loop = asyncio.get_running_loop()
-                        # 如果事件循环正在运行，使用线程池
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            future = executor.submit(self._run_mcp_tools_async)
-                            tools = future.result()
-                    except RuntimeError:
-                        # 如果没有事件循环，创建新的
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            tools = loop.run_until_complete(
-                                self.mcp_client_manager.get_all_tools()
-                            )
-                        finally:
-                            loop.close()
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(self._run_mcp_tools_async)
+                        tools = future.result()
                     
                     self.mcp_tools.extend(tools)
                 except Exception as e:
