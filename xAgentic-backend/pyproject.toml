@@ -19,7 +19,6 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
     "python-multipart>=0.0.6",
-    "langsmith>=0.4.31",
     "langchain-community>=0.3.30",
     "colorama>=0.4.6",
     "langchain-mcp-adapters>=0.1.0",

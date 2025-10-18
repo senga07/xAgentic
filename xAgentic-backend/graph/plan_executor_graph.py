@@ -23,11 +23,12 @@ from tools.search_tools import *
 from tools.time_tools import *
 from utils import json_utils
 from utils.custom_serializer import CustomSerializer
-from utils.langsmith_utils import trace_langsmith
 from utils.unified_logger import get_logger, log_error
 from typing import Dict, Any
 import time
 from datetime import datetime
+from langmem import create_manage_memory_tool, create_search_memory_tool
+
 
 class PlanExecutorState(TypedDict):
     """循环式规划执行状态"""
@@ -54,10 +55,9 @@ class PlanExecutorState(TypedDict):
     timing_info: Dict[str, Any]
 
 
-
 class PlanExecutorGraph:
     """循环式规划执行器 - 每个节点先检查不确定性，确认后执行"""
-    
+
     # 类级别的图实例和检查点存储，确保所有实例共享相同的状态
     _shared_checkpointer = None
     _shared_graph = None
@@ -88,12 +88,12 @@ class PlanExecutorGraph:
             # 初始化LangGraph检查点存储
             custom_serializer = CustomSerializer()
             PlanExecutorGraph._shared_checkpointer = MemorySaver(serde=custom_serializer)
-            
+
             # 构建图
             PlanExecutorGraph._shared_graph = self._build_graph()
             PlanExecutorGraph._initialized = True
             self.logger.info("PlanExecutorGraph 首次初始化完成")
-        
+
         # 使用共享的图实例
         self.graph = PlanExecutorGraph._shared_graph
         self.checkpointer = PlanExecutorGraph._shared_checkpointer
@@ -111,7 +111,7 @@ class PlanExecutorGraph:
         # 设置流程
         workflow.set_entry_point("analyze_and_plan")
         workflow.add_edge("analyze_and_plan", "check_and_execute_node")
-        
+
         # 检查并执行节点后的条件边
         workflow.add_conditional_edges(
             "check_and_execute_node",
@@ -126,7 +126,7 @@ class PlanExecutorGraph:
 
         return workflow.compile(checkpointer=PlanExecutorGraph._shared_checkpointer)
 
-    @trace_langsmith(name="analyze_and_plan")
+
     def _analyze_and_plan(self, state: PlanExecutorState) -> PlanExecutorState:
         """任务分析和计划创建节点"""
         try:
@@ -169,7 +169,6 @@ class PlanExecutorGraph:
             return state
 
 
-    @trace_langsmith(name="check_and_execute_node")
     def _check_and_execute_node(self, state: PlanExecutorState) -> PlanExecutorState:
         """执行当前节点"""
 
@@ -189,7 +188,7 @@ class PlanExecutorGraph:
         state["step_results"].append(node_result)
         state["current_step"] += 1
 
-        return self.process_result(current_step+1, node_result, state)
+        return self.process_result(current_step + 1, node_result, state)
 
     def process_result(self, current_step, node_result, state):
         """处理执行结果"""
@@ -211,7 +210,7 @@ class PlanExecutorGraph:
             "node_completed",
             f"✅ 节点 {current_step} 执行完成！",
             {
-                "status": "completed", 
+                "status": "completed",
                 "result": node_result,
                 "step_number": current_step,
                 "execution_result": node_result.get("execution_result"),
@@ -240,7 +239,6 @@ class PlanExecutorGraph:
             # 中断等待用户输入
             current_node["user_feedback"] = interrupt(confirmation_info)
 
-
     def _after_check_and_execute(self, state: PlanExecutorState) -> str:
         """检查并执行节点后的条件判断"""
         status = state.get("status")
@@ -251,16 +249,19 @@ class PlanExecutorGraph:
         else:
             return "next_node"  # 继续执行下一个节点
 
-
     def _do_execute(self, node: Dict[str, Any], node_index: int) -> Dict[str, Any]:
         """执行单个节点"""
         start_time = time.time()
+
+        memory_tools = [
+            create_manage_memory_tool(namespace=("execute_memories",)),
+            create_search_memory_tool(namespace=("execute_memories",)), ]
 
         try:
             # 创建ReAct Agent
             agent = create_react_agent(
                 model=self.worker_llm,
-                tools=self.all_tools,
+                tools=self.all_tools + memory_tools,
                 checkpointer=self.checkpointer,
                 store=self.store
             )
@@ -355,7 +356,6 @@ class PlanExecutorGraph:
             execution_result = f"执行完成，但结果提取时出现错误: {str(e)}"
         return execution_result
 
-
     def _generate_response(self, state: PlanExecutorState) -> PlanExecutorState:
         """生成最终回复"""
         try:
@@ -402,8 +402,8 @@ class PlanExecutorGraph:
 
             # 计算总时间
             total_duration = (
-                state["timing_info"].get("plan_creation_duration", 0) +
-                state["timing_info"].get("response_generation_duration", 0)
+                    state["timing_info"].get("plan_creation_duration", 0) +
+                    state["timing_info"].get("response_generation_duration", 0)
             )
 
             state["streaming_chunks"].append({
@@ -427,7 +427,6 @@ class PlanExecutorGraph:
             state["status"] = "failed"
             return state
 
-
     def _add_streaming_chunk(self, state: PlanExecutorState, step: str, message: str,
                              data: Dict[str, Any] = None) -> None:
         """添加流式输出块的辅助方法"""
@@ -438,7 +437,6 @@ class PlanExecutorGraph:
         if data:
             chunk["data"] = data
         state["streaming_chunks"].append(chunk)
-
 
     async def process_streaming_events(self, events: AsyncIterator[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
         """处理流式事件的公共方法"""
@@ -491,7 +489,7 @@ class PlanExecutorGraph:
 
         config = RunnableConfig(configurable={"thread_id": self.thread_id})
         events = self.graph.astream_events(initial_state, config=config)
-        
+
         async for chunk in self.process_streaming_events(events):
             yield chunk
 
