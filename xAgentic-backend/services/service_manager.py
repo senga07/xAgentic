@@ -12,7 +12,6 @@ from cfg.config import Config
 from llm_provider.base import get_llm
 from mcp_.client import MCPClientManager
 from mcp_.manager import mcp_manager
-from utils.langsmith_utils import langsmith_manager
 from utils.unified_logger import get_logger
 from langgraph.store.memory import InMemoryStore
 from memory.embeddings import Embeddings
@@ -49,10 +48,6 @@ class ServiceManager:
             
             # 1. 初始化配置
             self.config = Config()
-            
-            # 2. 启用LangSmith追踪
-            langsmith_manager.enable_tracing()
-            _setup_langsmith_tracing(self.config)
             
             # 3. 初始化LLM实例
             self._initialize_llms()

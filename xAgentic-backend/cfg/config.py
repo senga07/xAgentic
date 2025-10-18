@@ -15,17 +15,8 @@ class Config:
         if not self._initialized:
             self.llm_kwargs: Dict[str, Any] = {}
 
-            self._set_langsmith_attributes()
             self._set_llm_attributes()
             self._initialized = True
-
-
-    def _set_langsmith_attributes(self) -> None:
-        settings = get_settings()
-        self.langsmith_api_key = settings.langsmith_api_key
-        self.langsmith_project = settings.langsmith_project
-        self.langsmith_endpoint = settings.langsmith_endpoint
-        self.langsmith_tracing_v2 = settings.langsmith_tracing_v2
 
     def _set_llm_attributes(self) -> None:
         settings = get_settings()

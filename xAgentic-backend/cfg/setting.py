@@ -13,12 +13,6 @@ class Settings(BaseSettings):
     
     # Tavily 搜索 API 配置
     tavily_api_key: str
-    
-    # LangSmith 配置
-    langsmith_api_key: str
-    langsmith_project: str
-    langsmith_endpoint: str
-    langsmith_tracing_v2: bool
 
     fast_llm: str
     strategic_llm: str
@@ -27,10 +21,6 @@ class Settings(BaseSettings):
     # 服务器配置
     host: str
     port: int
-    
-    # 模型配置
-    # model_temperature: float
-    # model_max_tokens: int
 
     embedding: str
     
