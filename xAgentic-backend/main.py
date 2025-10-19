@@ -2,8 +2,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from api.chat import router as chat_router
-from api.mcp import router as mcp_router
+from api.plan_executor import router as plan_executor_router
 from cfg.setting import get_settings
 from services.service_manager import service_manager
 from utils.unified_logger import initialize_logging, get_logger
@@ -51,8 +50,8 @@ app.add_middleware(
 )
 
 # 注册路由
-app.include_router(chat_router)
-app.include_router(mcp_router)
+app.include_router(plan_executor_router)
+
 
 @app.get("/")
 def read_root():

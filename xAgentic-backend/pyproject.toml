@@ -28,6 +28,7 @@ dependencies = [
     "dashscope>=1.24.6",
     "langchain-tavily>=0.2.11",
     "langmem>=0.0.29",
+    "langgraph-supervisor>=0.0.29",
 ]
 
 [tool.setuptools.packages.find]

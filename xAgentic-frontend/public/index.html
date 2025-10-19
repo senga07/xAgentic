@@ -953,9 +953,7 @@
             </div>
             
             <div class="confirmation-actions">
-                <button class="confirmation-btn danger" id="cancelBtn">取消任务</button>
-                <button class="confirmation-btn secondary" id="continueBtn">继续执行</button>
-                <button class="confirmation-btn primary" id="replanBtn">补充信息后继续</button>
+                <button class="confirmation-btn primary" id="continueBtn">确认</button>
             </div>
         </div>
     </div>
@@ -991,9 +989,7 @@
                 
 
                 // 人工确认相关事件监听器
-                document.getElementById('cancelBtn').addEventListener('click', () => this.handleConfirmationAction('cancel'));
                 document.getElementById('continueBtn').addEventListener('click', () => this.handleConfirmationAction('continue'));
-                document.getElementById('replanBtn').addEventListener('click', () => this.handleConfirmationAction('replan'));
                 
                 // 点击遮罩层关闭确认对话框
                 document.getElementById('confirmationOverlay').addEventListener('click', (e) => {
@@ -1247,7 +1243,9 @@
                         timingDiv.className = 'step-timing';
                         stepDiv.appendChild(timingDiv);
                     }
-                    timingDiv.innerHTML = `⏱️ 步骤耗时: ${timing.duration}秒`;
+                    // 适配新的时间格式：从 node_execution_duration 获取时间
+                    const duration = timing.node_execution_duration || timing.duration || 0;
+                    timingDiv.innerHTML = `⏱️ 步骤耗时: ${duration}秒`;
                 }
                 
                 // 滚动到当前步骤
@@ -1308,7 +1306,9 @@
                 // 创建执行结果摘要
                 let summaryText = `${statusIcon} 步骤 ${stepNumber} ${statusText}`;
                 if (timing) {
-                    summaryText += ` (耗时: ${timing.duration}秒)`;
+                    // 适配新的时间格式：从 node_execution_duration 获取时间
+                    const duration = timing.node_execution_duration || timing.duration || 0;
+                    summaryText += ` (耗时: ${duration}秒)`;
                 }
                 
                 // 添加执行结果摘要到聊天
@@ -1675,11 +1675,11 @@
                 
                 this.hideConfirmationDialog();
                 
-                // 使用流式反馈而不是普通反馈
-                this.sendFeedbackStream(action, feedback);
+                // 简化反馈处理，只发送补充信息
+                this.sendFeedbackStream(feedback);
             }
 
-            async sendFeedbackStream(action, feedback) {
+            async sendFeedbackStream(feedback) {
                 try {
                     const response = await fetch('/api/chat/feedback-stream', {
                         method: 'POST',
@@ -1687,7 +1687,6 @@
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            action: action,
                             feedback: feedback
                         })
                     });

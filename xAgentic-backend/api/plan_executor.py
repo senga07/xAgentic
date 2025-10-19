@@ -20,11 +20,10 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     response: str
     conversation_history: List[str]
-    planning_details: Optional[dict] = None  # 规划详情（仅在planning模式下返回）
+    planning_details: Optional[dict] = None
 
 class FeedbackRequest(BaseModel):
-    action: str  # "continue", "cancel", "replan"
-    feedback: Optional[str] = None  # 用户补充信息
+    feedback: str  # 用户补充信息
 
 
 
