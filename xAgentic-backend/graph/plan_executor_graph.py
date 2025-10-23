@@ -6,8 +6,6 @@
 2. 循环执行：检查节点不确定性 → 确认（如需要）→ 执行节点
 3. 生成最终回复
 """
-import time
-from datetime import datetime
 from typing import List, AsyncIterator
 
 from langchain_core.runnables import RunnableConfig
@@ -194,10 +192,8 @@ class PlanExecutorGraph(BaseGraph):
     def _after_check_and_execute(self, state: PlanExecutorState) -> str:
         """检查并执行节点后的条件判断"""
         status = state.get("status")
-        if status == "completed":
-            return "complete"  # 所有节点完成，转到生成回复
-        elif status == "failed":
-            return "complete"  # 失败也结束流程
+        if status == "completed" or status == "failed":
+            return "complete"  # 所有节点完成/失败也结束流程，转到生成回复
         else:
             return "next_node"  # 继续执行下一个节点
 
@@ -314,7 +310,7 @@ class PlanExecutorGraph(BaseGraph):
                 }
             })
 
-            self.logger.info(f"回复生成完成，耗时: {duration:.2f}秒")
+
             return state
         except Exception as e:
             log_error(self.logger, e, "回复生成失败")
@@ -343,3 +339,37 @@ class PlanExecutorGraph(BaseGraph):
 
         async for chunk in self.process_streaming_events(events):
             yield chunk
+
+    async def process_streaming_events(self, events: AsyncIterator[Dict[str, Any]]) -> AsyncIterator[Dict[str, Any]]:
+        """处理流式事件"""
+        try:
+            async for event in events:
+                self.logger.info(f"收到event: {event['event']} - {event.get('name', 'unknown')}")
+
+                if event["event"] == "on_chain_stream":
+                    chunk = event.get("data", {}).get("chunk", {})
+                    if isinstance(chunk, dict) and "streaming_chunks" in chunk:
+                        for streaming_chunk in chunk["streaming_chunks"]:
+                            yield {
+                                "step": streaming_chunk.get("step"),
+                                "message": streaming_chunk.get("message"),
+                                "data": streaming_chunk.get("data"),
+                                "node": event.get("name", "unknown")
+                            }
+                    if isinstance(chunk, dict) and "__interrupt__" in chunk:
+                        chunk_interrupt = chunk["__interrupt__"][0]
+                        yield {
+                            "step": "interrupt",
+                            "message": "需要用户确认",
+                            "data": chunk_interrupt.value,
+                            "node": "check_node_uncertainty"
+                        }
+                        return
+        except Exception as e:
+            self.logger.error(f"流式处理失败: {str(e)}")
+            yield {
+                "step": "error",
+                "message": f"执行失败: {str(e)}",
+                "data": {},
+                "node": "error"
+            }

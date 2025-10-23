@@ -172,8 +172,8 @@ def execute_python_code(task_description: str, context: str = "") -> str:
 import calendar
 from datetime import datetime
 
-@tool
-def tian_gan_di_zhi(year, month, day, hour):
+
+def tian_gan_di_zhi(year:int, month:int, day:int, hour:int):
     """
     计算天干地支
     """
@@ -191,12 +191,12 @@ def tian_gan_di_zhi(year, month, day, hour):
         return heavenly_stems[month_stem_index]
 
     def month_branch(year, month):
-        first_day_wday, month_days = calendar.monthrange(year, month)
+        _, month_days = calendar.monthrange(year, month)
         first_month_branch = 2  # 寅
         if calendar.isleap(year):
             first_month_branch -= 1
-        month_branch = (first_month_branch + month - 1) % 12
-        return earthly_branches[month_branch]
+        m_branch = (first_month_branch + month - 1) % 12
+        return earthly_branches[m_branch]
 
     def day_zhu(year, month, day):
         base_date = datetime(1900, 1, 1)
@@ -213,9 +213,9 @@ def tian_gan_di_zhi(year, month, day, hour):
         hour_stem_index = (day_stem_index * 2 + hour // 2) % 10
         return heavenly_stems[hour_stem_index]
 
-    def hour_branch(hour):
-        hour = (hour + 1) % 24
-        return earthly_branches[hour // 2]
+    def hour_branch(h):
+        h = (h + 1) % 24
+        return earthly_branches[h // 2]
 
     year_zhu_result = year_zhu(year)
     month_stem_result = month_stem(year, month)

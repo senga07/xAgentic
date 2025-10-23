@@ -6,37 +6,16 @@
 - 手相智能体：基于手相图片进行分析
 - 面相智能体：基于面部照片进行分析
 """
-from typing import List, TypedDict, AsyncIterator, Dict, Any
-from langchain_core.messages.base import BaseMessage
+from typing import AsyncIterator
+
 from langchain_core.runnables import RunnableConfig
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 from langgraph_supervisor import create_supervisor
 
+from graph.base_graph import BaseGraph
 from prompt.supervisor_prompts import *
-from services.service_manager import service_manager
 from tools.code_tools import *
-from tools.search_tools import *
-from tools.time_tools import *
-from utils import json_utils
-from utils.custom_serializer import CustomSerializer
-from utils.unified_logger import get_logger, log_error
-from graph.base_graph import BaseGraph, BaseGraphState
-import time
-from datetime import datetime
-
-
-class SupervisorState(BaseGraphState):
-    """主管多智能体系统状态"""
-    # 任务分析
-    user_input: str
-    analysis_type: str  # "bazi", "hand", "facial", "comprehensive"
-    analysis_data: Dict[str, Any]  # 用户提供的分析数据
-
-    # 智能体执行
-    agent_results: Dict[str, Any]  # 各智能体的执行结果
-    current_agent: str  # 当前执行的智能体
 
 
 class SupervisorGraph(BaseGraph):
@@ -46,15 +25,22 @@ class SupervisorGraph(BaseGraph):
     _shared_checkpointer = None
     _shared_graph = None
     _initialized = False
+    _bazi_info = None
+    _hand_images = None
+    _facial_images = None
 
-    def __init__(self):
+    def __init__(self, analysis_data: Dict[str, Any] = None):
         super().__init__("SupervisorGraph")
+
+        self._bazi_info = analysis_data.get("bazi")
+        self._hand_images = analysis_data.get("hand_image")
+        self._facial_images = analysis_data.get("facial_image")
 
         # 使用共享的图实例和检查点存储
         if not SupervisorGraph._initialized:
             # 初始化检查点存储
             self._initialize_checkpointer(SupervisorGraph)
-            
+
             # 构建图
             SupervisorGraph._shared_graph = self._build_graph()
             SupervisorGraph._initialized = True
@@ -67,89 +53,84 @@ class SupervisorGraph(BaseGraph):
     def _build_graph(self) -> CompiledStateGraph:
         """构建主管多智能体图 - 使用 create_supervisor 方法"""
 
-        # 创建三个专业智能体
-        bazi_agent = self._create_bazi_agent()
-        hand_agent = self._create_hand_agent()
-        facial_agent = self._create_facial_agent()
+        export_agents = []
+        if self._bazi_info:
+            bazi_agent = create_react_agent(
+                model=self.fast_llm,
+                tools=[],
+                name="八字专家",
+                prompt=bazi_prompt.format(user_bazi=self._bazi_info),
+            )
+            export_agents.append(bazi_agent)
+
+        if self._hand_images:
+            hand_agent = create_react_agent(
+                model=self.vision_llm,
+                tools=[],
+                name="手相专家",
+                prompt=hand_prompt.format(hand_images=self._hand_images),
+            )
+            export_agents.append(hand_agent)
+
+        if self._facial_images:
+            facial_agent = create_react_agent(
+                model=self.vision_llm,
+                tools=[],
+                name="面相专家",
+                prompt=facial_prompt.format(facial_images=self._facial_images),
+            )
+            export_agents.append(facial_agent)
 
         # 创建主管智能体，管理三个专业智能体
         supervisor_workflow = create_supervisor(
-            agents=[bazi_agent, hand_agent, facial_agent],
+            agents=export_agents,
             model=self.strategic_llm,
             prompt=supervisor_prompt.template,
-            tools=[web_search],
-            add_handoff_back_messages=True,
-            supervisor_name="命理分析主管")
-
+            add_handoff_back_messages=False,
+            supervisor_name="命理分析主管",
+        )
         return supervisor_workflow.compile(checkpointer=SupervisorGraph._shared_checkpointer)
 
-    def _create_bazi_agent(self):
-        """创建八字分析智能体"""
-        return create_react_agent(
-            model=self.fast_llm,
-            tools=[web_search, tian_gan_di_zhi],
-            name="八字专家",
-            prompt=bazi_prompt.template,
-        )
+    async def chat_with_supervisor_stream(self, thread_id: str, user_msg: str) -> AsyncIterator[
+        Dict[str, Any]]:
+        """流式聊天接口 - 支持主管多智能体模式，处理包含图片数据的分析"""
+        self.thread_id = thread_id
+        config = RunnableConfig(configurable={"thread_id": self.thread_id})
 
-    def _create_hand_agent(self):
-        """创建手相分析智能体"""
-        return create_react_agent(
-            model=self.vision_llm,
-            tools=[web_search],
-            name="手相专家",
-            prompt=hand_prompt.template
-        )
+        initial_input = {
+            "messages": [HumanMessage(content=f"我给你{user_msg}，开始分析")]
+        }
+        events = self.graph.astream_events(initial_input, config=config)
+        async for chunk in self.process_streaming_events(events):
+            yield chunk
 
-    def _create_facial_agent(self):
-        """创建面相分析智能体"""
-        return create_react_agent(
-            model=self.vision_llm,
-            tools=[web_search],
-            name="面相专家",
-            prompt=facial_prompt.template
-        )
-
-    async def chat_with_supervisor_stream(self, thread_id: str, messages: List = None) -> AsyncIterator[Dict[str, Any]]:
-        """流式聊天接口 - 支持主管多智能体模式"""
+    async def process_streaming_events(self, events: AsyncIterator[Dict[str, Any]]) -> AsyncIterator[
+        Dict[str, Any]]:
+        """处理流式事件"""
         try:
-            # 初始化状态
-            self.thread_id = thread_id
-            self.logger.info(f"开始主管多智能体分析，线程ID: {thread_id}")
+            async for event in events:
+                event_name = event.get('name', 'unknown')
+                event_type = event['event']
+                event_data = event.get('data', {})
+                self.logger.info(f"收到event: {event_type} - {event_name}")
 
-            # 准备配置
-            config = RunnableConfig(configurable={"thread_id": self.thread_id})
-
-            # 转换消息格式为字典
-            if messages and isinstance(messages, list):
-                # 将消息对象转换为字典格式
-                message_dicts = []
-                for msg in messages:
-                    if hasattr(msg, 'content'):
-                        message_dicts.append({
-                            "role": "user" if hasattr(msg, '__class__') and 'Human' in str(
-                                msg.__class__) else "assistant",
-                            "content": msg.content
-                        })
-                    else:
-                        message_dicts.append(msg)
-
-                input_data = {"messages": message_dicts}
-            else:
-                input_data = {"messages": messages or []}
-
-            # 获取流式事件
-            events = self.graph.astream_events(input_data, config=config)
-
-            # 处理流式事件
-            async for chunk in self.process_streaming_events(events):
-                yield chunk
-
+                # 处理链式流输出事件
+                if event_type == "on_chain_stream" and event_name == '八字专家':
+                    chunk = event.get("data", {}).get("chunk", {})
+                    if chunk:
+                        if "chunk" in event_data and "messages" in event_data["chunk"]:
+                            content = event_data["chunk"]["messages"][-1].content
+                            if len(content) > 0:
+                                yield {
+                                    "analysis": content,
+                                }
+                        elif "output" in event_data:
+                            content = event_data["output"].content
+                            yield {
+                                "analysis": content,
+                            }
         except Exception as e:
-            self.logger.error(f"主管多智能体执行失败: {str(e)}")
+            self.logger.error(f"流式处理失败: {str(e)}")
             yield {
-                "step": "error",
-                "message": f"执行失败: {str(e)}",
-                "data": {"error": str(e)},
-                "node": "supervisor_error"
+                "analysis": f"执行失败: {str(e)}",
             }

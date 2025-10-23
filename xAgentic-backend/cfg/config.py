@@ -22,6 +22,7 @@ class Config:
         settings = get_settings()
         self.fast_llm_provider, self.fast_llm_model = self.parse_llm(settings.fast_llm)
         self.strategic_llm_provider, self.strategic_llm_model = self.parse_llm(settings.strategic_llm)
+        self.vision_llm_provider, self.vision_llm_model = self.parse_llm(settings.vision_llm)
         self.coding_llm_provider, self.coding_llm_model = self.parse_llm(settings.coding_llm)
         self.embedding_provider, self.embedding_model = self.parse_llm(settings.embedding)
 

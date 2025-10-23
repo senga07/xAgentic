@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>八字玄机</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .fortune-container {
+            width: 95%;
+            max-width: 800px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: relative;
+        }
+
+        .fortune-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            position: relative;
+        }
+
+        .fortune-header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .fortune-header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .form-section {
+            margin-bottom: 30px;
+        }
+
+        .form-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .form-group input[type="datetime-local"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            outline: none;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input[type="datetime-local"]:focus {
+            border-color: #667eea;
+        }
+
+        .file-upload-area {
+            border: 2px dashed #e1e5e9;
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .file-upload-area:hover {
+            border-color: #667eea;
+            background: #f8f9fa;
+        }
+
+        .file-upload-area.dragover {
+            border-color: #667eea;
+            background: #f0f4f8;
+        }
+
+        .file-upload-icon {
+            font-size: 48px;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .file-upload-text {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .file-upload-hint {
+            color: #999;
+            font-size: 12px;
+        }
+
+        .file-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .preview-container {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .preview-image {
+            max-width: 200px;
+            max-height: 200px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .preview-info {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .submit-section {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid #e1e5e9;
+        }
+
+        .submit-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s;
+            min-width: 200px;
+        }
+
+        .submit-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .submit-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            color: #666;
+            font-size: 14px;
+            margin-top: 20px;
+        }
+
+        .loading.show {
+            display: flex;
+        }
+
+        .loading-dots {
+            display: inline-block;
+        }
+
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: ''; }
+            40% { content: '.'; }
+            60% { content: '..'; }
+            80%, 100% { content: '...'; }
+        }
+
+        .result-section {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .result-section.show {
+            display: block;
+        }
+
+        .result-title {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .result-content {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* Markdown样式 */
+        .markdown-content {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.7;
+            color: #333;
+        }
+
+        .markdown-content h1, .markdown-content h2, .markdown-content h3, 
+        .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+            color: #2c3e50;
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+
+        .markdown-content h1 {
+            font-size: 2em;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+
+        .markdown-content h2 {
+            font-size: 1.5em;
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+
+        .markdown-content h3 {
+            font-size: 1.25em;
+        }
+
+        .markdown-content p {
+            margin-bottom: 16px;
+        }
+
+        .markdown-content ul, .markdown-content ol {
+            margin-bottom: 16px;
+            padding-left: 30px;
+        }
+
+        .markdown-content li {
+            margin-bottom: 4px;
+        }
+
+        .markdown-content blockquote {
+            margin: 16px 0;
+            padding: 0 16px;
+            color: #6a737d;
+            border-left: 4px solid #dfe2e5;
+            background-color: #f8f9fa;
+            border-radius: 0 4px 4px 0;
+        }
+
+        .markdown-content code {
+            background-color: #f6f8fa;
+            border-radius: 3px;
+            font-size: 85%;
+            margin: 0;
+            padding: 0.2em 0.4em;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+        }
+
+        .markdown-content pre {
+            background-color: #f6f8fa;
+            border-radius: 6px;
+            font-size: 85%;
+            line-height: 1.45;
+            overflow: auto;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .markdown-content pre code {
+            background-color: transparent;
+            border: 0;
+            display: inline;
+            line-height: inherit;
+            margin: 0;
+            max-width: auto;
+            overflow: visible;
+            padding: 0;
+            word-wrap: normal;
+        }
+
+        .markdown-content table {
+            border-collapse: collapse;
+            margin-bottom: 16px;
+            width: 100%;
+        }
+
+        .markdown-content table th, .markdown-content table td {
+            border: 1px solid #dfe2e5;
+            padding: 6px 13px;
+        }
+
+        .markdown-content table th {
+            background-color: #f6f8fa;
+            font-weight: 600;
+        }
+
+        .markdown-content strong {
+            font-weight: 600;
+        }
+
+        .markdown-content em {
+            font-style: italic;
+        }
+
+        .markdown-content hr {
+            border: 0;
+            border-top: 1px solid #eaecef;
+            margin: 24px 0;
+        }
+
+        .error-message {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #f44336;
+        }
+
+        .success-message {
+            background: #e8f5e8;
+            color: #2e7d32;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            border-left: 4px solid #4caf50;
+        }
+
+        @media (max-width: 768px) {
+            .fortune-container {
+                width: 100%;
+                margin: 10px;
+            }
+
+            .main-content {
+                padding: 20px;
+            }
+
+            .fortune-header {
+                padding: 20px;
+            }
+
+            .fortune-header h1 {
+                font-size: 24px;
+            }
+
+            .file-upload-area {
+                padding: 20px;
+            }
+
+            .file-upload-icon {
+                font-size: 36px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="fortune-container">
+        <div class="fortune-header">
+            <h1>🔮 面相手相分析系统</h1>
+            <p>上传您的照片，获取专业的相学分析</p>
+        </div>
+        
+        <div class="main-content">
+            <form id="fortuneForm">
+                <!-- 生日输入 -->
+                <div class="form-section">
+                    <h3>📅 出生信息</h3>
+                    <div class="form-group">
+                        <label for="birthDateTime">请选择您的出生日期和时间：</label>
+                        <input 
+                            type="datetime-local" 
+                            id="birthDateTime" 
+                            name="birthDateTime"
+                            required
+                        >
+                    </div>
+                </div>
+
+                <!-- 手相照片上传 -->
+                <div class="form-section">
+                    <h3>✋ 手相照片（可选）</h3>
+                    <div class="file-upload-area" id="palmUploadArea">
+                        <div class="file-upload-icon">📸</div>
+                        <div class="file-upload-text">点击或拖拽上传手相照片</div>
+                        <div class="file-upload-hint">支持 JPG、PNG 格式，建议清晰度较高的照片。上传手相照片可以获得更准确的分析结果。</div>
+                        <input 
+                            type="file" 
+                            id="palmPhoto" 
+                            name="palmPhoto"
+                            accept="image/*"
+                            class="file-input"
+                        >
+                    </div>
+                    <div class="preview-container" id="palmPreview">
+                        <img class="preview-image" id="palmPreviewImg" alt="手相预览">
+                        <div class="preview-info" id="palmPreviewInfo"></div>
+                    </div>
+                </div>
+
+                <!-- 面相照片上传 -->
+                <div class="form-section">
+                    <h3>👤 面相照片（可选）</h3>
+                    <div class="file-upload-area" id="faceUploadArea">
+                        <div class="file-upload-icon">📷</div>
+                        <div class="file-upload-text">点击或拖拽上传面相照片</div>
+                        <div class="file-upload-hint">支持 JPG、PNG 格式，建议正面清晰的照片。上传面相照片可以获得更准确的分析结果。</div>
+                        <input 
+                            type="file" 
+                            id="facePhoto" 
+                            name="facePhoto"
+                            accept="image/*"
+                            class="file-input"
+                        >
+                    </div>
+                    <div class="preview-container" id="facePreview">
+                        <img class="preview-image" id="facePreviewImg" alt="面相预览">
+                        <div class="preview-info" id="facePreviewInfo"></div>
+                    </div>
+                </div>
+
+                <!-- 提交按钮 -->
+                <div class="submit-section">
+                    <button type="submit" class="submit-button" id="submitButton">
+                        开始分析
+                    </button>
+                    <div class="loading" id="loadingIndicator">
+                        <span>正在分析中</span>
+                        <span class="loading-dots"></span>
+                    </div>
+                </div>
+            </form>
+
+            <!-- 结果显示区域 -->
+            <div class="result-section" id="resultSection">
+                <div class="result-title">
+                    🔍 分析结果
+                </div>
+                <div class="result-content" id="resultContent">
+                    <!-- 分析结果将在这里显示 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Markdown解析库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+    <!-- 代码高亮库 -->
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/core.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/languages/json.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+
+    <script>
+        class FortuneAnalysisApp {
+            constructor() {
+                this.form = document.getElementById('fortuneForm');
+                this.submitButton = document.getElementById('submitButton');
+                this.loadingIndicator = document.getElementById('loadingIndicator');
+                this.resultSection = document.getElementById('resultSection');
+                this.resultContent = document.getElementById('resultContent');
+                
+                // 配置marked.js
+                this.setupMarkdownRenderer();
+                
+                this.init();
+            }
+
+            setupMarkdownRenderer() {
+                // 配置marked.js选项
+                if (typeof marked !== 'undefined') {
+                    marked.setOptions({
+                        highlight: function(code, lang) {
+                            if (typeof hljs !== 'undefined' && lang && hljs.getLanguage(lang)) {
+                                try {
+                                    return hljs.highlight(code, { language: lang }).value;
+                                } catch (err) {
+                                    console.warn('代码高亮失败:', err);
+                                }
+                            }
+                            return code;
+                        },
+                        breaks: true,
+                        gfm: true,
+                        sanitize: false
+                    });
+                }
+            }
+
+            parseMarkdown(text) {
+                if (typeof marked !== 'undefined') {
+                    return marked.parse(text);
+                }
+                // 如果marked.js未加载，返回原始文本
+                return text.replace(/\n/g, '<br>');
+            }
+
+            init() {
+                // 表单提交事件
+                this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+                
+                // 文件上传事件
+                this.setupFileUpload('palmPhoto', 'palmUploadArea', 'palmPreview', 'palmPreviewImg', 'palmPreviewInfo');
+                this.setupFileUpload('facePhoto', 'faceUploadArea', 'facePreview', 'facePreviewImg', 'facePreviewInfo');
+            }
+
+            setupFileUpload(inputId, uploadAreaId, previewId, previewImgId, previewInfoId) {
+                const fileInput = document.getElementById(inputId);
+                const uploadArea = document.getElementById(uploadAreaId);
+                const preview = document.getElementById(previewId);
+                const previewImg = document.getElementById(previewImgId);
+                const previewInfo = document.getElementById(previewInfoId);
+
+                // 点击上传区域触发文件选择
+                uploadArea.addEventListener('click', () => fileInput.click());
+
+                // 文件选择事件
+                fileInput.addEventListener('change', (e) => this.handleFileSelect(e, preview, previewImg, previewInfo));
+
+                // 拖拽事件
+                uploadArea.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.add('dragover');
+                });
+
+                uploadArea.addEventListener('dragleave', () => {
+                    uploadArea.classList.remove('dragover');
+                });
+
+                uploadArea.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    uploadArea.classList.remove('dragover');
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        fileInput.files = files;
+                        this.handleFileSelect({ target: fileInput }, preview, previewImg, previewInfo);
+                    }
+                });
+            }
+
+            handleFileSelect(event, preview, previewImg, previewInfo) {
+                const file = event.target.files[0];
+                if (file) {
+                    // 验证文件类型
+                    if (!file.type.startsWith('image/')) {
+                        this.showError('请选择图片文件');
+                        return;
+                    }
+
+                    // 验证文件大小 (5MB)
+                    if (file.size > 5 * 1024 * 1024) {
+                        this.showError('文件大小不能超过5MB');
+                        return;
+                    }
+
+                    // 显示预览
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        previewImg.src = e.target.result;
+                        previewInfo.textContent = `文件名: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`;
+                        preview.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            async handleSubmit(event) {
+                event.preventDefault();
+                
+                const formData = new FormData();
+                const birthDateTime = document.getElementById('birthDateTime').value;
+                const palmPhoto = document.getElementById('palmPhoto').files[0];
+                const facePhoto = document.getElementById('facePhoto').files[0];
+
+                // 验证必填字段
+                if (!birthDateTime) {
+                    this.showError('请选择出生日期和时间');
+                    return;
+                }
+
+                // 准备提交数据
+                formData.append('birthDateTime', birthDateTime);
+                
+                // 添加图片文件（如果存在）
+                if (palmPhoto) {
+                    formData.append('palmPhoto', palmPhoto);
+                }
+                
+                if (facePhoto) {
+                    formData.append('facePhoto', facePhoto);
+                }
+
+                // 显示加载状态
+                this.setLoading(true);
+                this.hideResult();
+
+                try {
+                    const response = await fetch('/api/fortune/analyze', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    this.showResult(result);
+                } catch (error) {
+                    console.error('分析失败:', error);
+                    this.showError(`分析失败: ${error.message}`);
+                } finally {
+                    this.setLoading(false);
+                }
+            }
+
+            setLoading(loading) {
+                this.submitButton.disabled = loading;
+                if (loading) {
+                    this.loadingIndicator.classList.add('show');
+                } else {
+                    this.loadingIndicator.classList.remove('show');
+                }
+            }
+
+            showResult(result) {
+                // 显示加载状态
+                this.resultContent.innerHTML = `
+                    <div class="success-message">
+                        ✅ 分析完成！正在渲染结果...
+                    </div>
+                `;
+                this.resultSection.classList.add('show');
+                
+                // 异步解析markdown，避免阻塞UI
+                setTimeout(() => {
+                    const analysisContent = result.analysis || '分析结果已生成';
+                    const parsedAnalysis = this.parseMarkdown(analysisContent);
+                    
+                    this.resultContent.innerHTML = `
+                        <div class="success-message">
+                            ✅ 分析完成！以下是您的相学分析结果：
+                        </div>
+                        <div style="margin-top: 20px; padding: 20px; background: white; border-radius: 8px; border: 1px solid #e1e5e9;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h4 style="color: #333; margin: 0;">📊 分析报告</h4>
+                                <div style="display: flex; gap: 10px;">
+                                    <button onclick="window.fortuneApp.copyToClipboard('${this.escapeHtml(analysisContent)}')" 
+                                            style="padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                        📋 复制
+                                    </button>
+                                    <button onclick="window.fortuneApp.exportAsMarkdown('${this.escapeHtml(analysisContent)}')" 
+                                            style="padding: 6px 12px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                        📄 导出
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="markdown-content">
+                                ${parsedAnalysis}
+                            </div>
+                            ${result.recommendations ? `
+                                <div style="margin-top: 20px;">
+                                    <h5 style="color: #333; margin-bottom: 10px;">💡 建议</h5>
+                                    <div class="markdown-content">
+                                        ${this.parseMarkdown(result.recommendations)}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                    this.resultSection.scrollIntoView({ behavior: 'smooth' });
+                }, 100);
+            }
+
+            showError(message) {
+                this.resultContent.innerHTML = `
+                    <div class="error-message">
+                        ❌ ${message}
+                    </div>
+                `;
+                this.resultSection.classList.add('show');
+                this.resultSection.scrollIntoView({ behavior: 'smooth' });
+            }
+
+            hideResult() {
+                this.resultSection.classList.remove('show');
+            }
+
+            escapeHtml(text) {
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            copyToClipboard(text) {
+                navigator.clipboard.writeText(text).then(() => {
+                    this.showToast('内容已复制到剪贴板！', 'success');
+                }).catch(err => {
+                    console.error('复制失败:', err);
+                    this.showToast('复制失败，请手动选择复制', 'error');
+                });
+            }
+
+            exportAsMarkdown(text) {
+                const blob = new Blob([text], { type: 'text/markdown' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `命理分析报告_${new Date().toISOString().slice(0, 10)}.md`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                this.showToast('文件已下载！', 'success');
+            }
+
+            showToast(message, type = 'info') {
+                const toast = document.createElement('div');
+                toast.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    padding: 12px 20px;
+                    border-radius: 4px;
+                    color: white;
+                    font-weight: 500;
+                    z-index: 10000;
+                    transition: all 0.3s ease;
+                    ${type === 'success' ? 'background: #28a745;' : 
+                      type === 'error' ? 'background: #dc3545;' : 
+                      'background: #007bff;'}
+                `;
+                toast.textContent = message;
+                document.body.appendChild(toast);
+                
+                setTimeout(() => {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    setTimeout(() => {
+                        if (document.body.contains(toast)) {
+                            document.body.removeChild(toast);
+                        }
+                    }, 300);
+                }, 3000);
+            }
+        }
+
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', () => {
+            window.fortuneApp = new FortuneAnalysisApp();
+        });
+    </script>
+</body>
+</html>

@@ -5,9 +5,13 @@
 """
 import pickle
 import json
+import uuid
+import logging
 from typing import Any, Tuple, Dict
 from langchain_core.messages import ToolMessage, AIMessage, HumanMessage, SystemMessage
 from langgraph.checkpoint.serde.base import SerializerProtocol
+
+logger = logging.getLogger(__name__)
 
 
 class CustomSerializer(SerializerProtocol):

@@ -12,6 +12,16 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// 添加对multipart/form-data的支持
+const multer = require('multer');
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  }
+});
+app.use(upload.any());
+
 
 // 代理流式API请求到后端
 app.post('/api/chat/stream', async (req, res) => {
@@ -136,6 +146,62 @@ app.post('/api/chat/feedback-stream', async (req, res) => {
     console.error('流式反馈API错误:', error.message);
     res.status(500).json({ 
       error: '无法连接到流式反馈服务',
+      details: error.message 
+    });
+  }
+});
+
+// 代理fortune分析API
+app.post('/api/fortune/analyze', async (req, res) => {
+  try {
+    console.log('收到fortune分析请求');
+    console.log('req.body:', req.body);
+    console.log('req.files:', req.files);
+    
+    // 构建FormData对象
+    const FormData = require('form-data');
+    const formData = new FormData();
+    
+    // 添加文本字段
+    if (req.body.birthDateTime) {
+      // 转换日期时间格式从 ISO 格式 (2025-02-20T13:18) 到后端期望的格式 (2025-02-20 13:18)
+      const isoDateTime = req.body.birthDateTime;
+      const formattedDateTime = isoDateTime.replace('T', ' ');
+      console.log('原始日期时间:', isoDateTime);
+      console.log('转换后日期时间:', formattedDateTime);
+      formData.append('birthDateTime', formattedDateTime);
+    }
+    
+    // 添加文件字段（可选）
+    if (req.files && req.files.length > 0) {
+      req.files.forEach(file => {
+        console.log('处理文件:', file.fieldname, file.originalname, file.mimetype);
+        if (file.fieldname === 'palmPhoto' && file.originalname) {
+          formData.append('palmPhoto', file.buffer, {
+            filename: file.originalname,
+            contentType: file.mimetype
+          });
+        } else if (file.fieldname === 'facePhoto' && file.originalname) {
+          formData.append('facePhoto', file.buffer, {
+            filename: file.originalname,
+            contentType: file.mimetype
+          });
+        }
+      });
+    }
+    
+    console.log('发送到后端:', `${BACKEND_URL}/api/fortune/analyze`);
+    const response = await axios.post(`${BACKEND_URL}/api/fortune/analyze`, formData, {
+      headers: {
+        ...formData.getHeaders()
+      }
+    });
+    res.json(response.data);
+  } catch (error) {
+    console.error('fortune分析失败:', error.message);
+    console.error('错误详情:', error.response?.data);
+    res.status(500).json({ 
+      error: 'fortune分析失败',
       details: error.message 
     });
   }

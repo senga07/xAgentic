@@ -16,6 +16,7 @@ class Settings(BaseSettings):
 
     fast_llm: str
     strategic_llm: str
+    vision_llm: str
     coding_llm: str
     
     # 服务器配置

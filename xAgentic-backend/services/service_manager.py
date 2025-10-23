@@ -35,6 +35,7 @@ class ServiceManager:
             self.config = None
             self.strategic_llm = None
             self.fast_llm = None
+            self.vision_llm = None
             self.code_llm = None
             self._initialized = True
             self.mcp_tools = None
@@ -79,7 +80,13 @@ class ServiceManager:
                 model=self.config.fast_llm_model,
                 **self.config.llm_kwargs
             ).llm
-            
+
+            self.vision_llm = get_llm(
+                llm_provider=self.config.vision_llm_provider,
+                model=self.config.vision_llm_model,
+                **self.config.llm_kwargs
+            ).llm
+
             # 代码LLM
             self.code_llm = get_llm(
                 llm_provider=self.config.coding_llm_provider,
@@ -97,6 +104,7 @@ class ServiceManager:
         return {
             'strategic_llm': self.strategic_llm,
             'fast_llm': self.fast_llm,
+            'vision_llm': self.vision_llm,
             'code_llm': self.code_llm
         }
     
