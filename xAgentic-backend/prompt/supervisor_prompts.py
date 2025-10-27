@@ -16,9 +16,7 @@ bazi_prompt = PromptTemplate.from_template("""# 角色
 ## 健康分析
 ## 未来1年趋势与预测
 ## 未来3到5年趋势与预测
-## 一生的命运预测
-# 用户八字信息
-{user_bazi}""")
+## 一生的命运预测""")
 
 
 hand_prompt = PromptTemplate.from_template("""# 角色
@@ -26,9 +24,7 @@ hand_prompt = PromptTemplate.from_template("""# 角色
 # 任务
 结合掌形特点（土型、火型、风型、水型），分析生命线、智慧线、感情线和其他辅助线如（婚姻线、事业线和太阳线）的特点和走势，得到以下方面内容：
 1. 基本信息：性格、事业、财运、婚姻、健康
-2. 其他信息：思维方式、情感和人际关系
-# 手相图片base64
-{hand_images}""")
+2. 其他信息：思维方式、情感和人际关系""")
 
 
 facial_prompt = PromptTemplate.from_template("""# 角色
@@ -36,6 +32,4 @@ facial_prompt = PromptTemplate.from_template("""# 角色
 # 任务
 分析面部中眉毛、眼睛、鼻子、嘴巴、耳朵、脸型这6个部分的特点，得到以下方面内容：
 1. 基本信息：性格、事业、财运、婚姻、健康
-2. 其他信息：思维方式、情感和人际关系
-# 面相图片base64
-{facial_images}""")
+2. 其他信息：思维方式、情感和人际关系""")

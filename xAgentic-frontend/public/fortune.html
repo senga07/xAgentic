@@ -66,6 +66,58 @@
             gap: 10px;
         }
 
+        .hands-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .hand-section {
+            flex: 1;
+            padding: 20px;
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .hand-section.left-hand {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border-color: #2196f3;
+        }
+
+        .hand-section.right-hand {
+            background: linear-gradient(135deg, #fff3e0 0%, #fce4ec 100%);
+            border-color: #ff9800;
+        }
+
+        .hand-section:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        }
+
+        .hand-section h4 {
+            color: #495057;
+            margin-bottom: 15px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-align: center;
+            justify-content: center;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .hands-container {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .hand-section {
+                margin-bottom: 0;
+            }
+        }
+
         .form-group {
             margin-bottom: 20px;
         }
@@ -138,6 +190,8 @@
             height: 100%;
             opacity: 0;
             cursor: pointer;
+            z-index: 2;
+            pointer-events: auto;
         }
 
         .preview-container {
@@ -416,14 +470,13 @@
             <form id="fortuneForm">
                 <!-- 生日输入 -->
                 <div class="form-section">
-                    <h3>📅 出生信息</h3>
+                    <h3>📅 出生信息（可选）</h3>
                     <div class="form-group">
                         <label for="birthDateTime">请选择您的出生日期和时间：</label>
                         <input 
                             type="datetime-local" 
                             id="birthDateTime" 
                             name="birthDateTime"
-                            required
                         >
                     </div>
                 </div>
@@ -431,21 +484,50 @@
                 <!-- 手相照片上传 -->
                 <div class="form-section">
                     <h3>✋ 手相照片（可选）</h3>
-                    <div class="file-upload-area" id="palmUploadArea">
-                        <div class="file-upload-icon">📸</div>
-                        <div class="file-upload-text">点击或拖拽上传手相照片</div>
-                        <div class="file-upload-hint">支持 JPG、PNG 格式，建议清晰度较高的照片。上传手相照片可以获得更准确的分析结果。</div>
-                        <input 
-                            type="file" 
-                            id="palmPhoto" 
-                            name="palmPhoto"
-                            accept="image/*"
-                            class="file-input"
-                        >
-                    </div>
-                    <div class="preview-container" id="palmPreview">
-                        <img class="preview-image" id="palmPreviewImg" alt="手相预览">
-                        <div class="preview-info" id="palmPreviewInfo"></div>
+                    
+                    <!-- 左右手照片上传区域 -->
+                    <div class="hands-container">
+                        <!-- 左手照片上传 -->
+                        <div class="hand-section left-hand">
+                            <h4>🤚 左手照片</h4>
+                            <div class="file-upload-area" id="leftHandUploadArea">
+                                <div class="file-upload-icon">📸</div>
+                                <div class="file-upload-text">点击或拖拽上传左手照片</div>
+                                <div class="file-upload-hint">支持 JPG、PNG 格式，建议清晰度较高的照片</div>
+                                <input 
+                                    type="file" 
+                                    id="leftHandPhoto" 
+                                    name="leftHandPhoto"
+                                    accept="image/*"
+                                    class="file-input"
+                                >
+                            </div>
+                            <div class="preview-container" id="leftHandPreview">
+                                <img class="preview-image" id="leftHandPreviewImg" alt="左手预览">
+                                <div class="preview-info" id="leftHandPreviewInfo"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- 右手照片上传 -->
+                        <div class="hand-section right-hand">
+                            <h4>✋ 右手照片</h4>
+                            <div class="file-upload-area" id="rightHandUploadArea">
+                                <div class="file-upload-icon">📸</div>
+                                <div class="file-upload-text">点击或拖拽上传右手照片</div>
+                                <div class="file-upload-hint">支持 JPG、PNG 格式，建议清晰度较高的照片</div>
+                                <input 
+                                    type="file" 
+                                    id="rightHandPhoto" 
+                                    name="rightHandPhoto"
+                                    accept="image/*"
+                                    class="file-input"
+                                >
+                            </div>
+                            <div class="preview-container" id="rightHandPreview">
+                                <img class="preview-image" id="rightHandPreviewImg" alt="右手预览">
+                                <div class="preview-info" id="rightHandPreviewInfo"></div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -550,7 +632,8 @@
                 this.form.addEventListener('submit', (e) => this.handleSubmit(e));
                 
                 // 文件上传事件
-                this.setupFileUpload('palmPhoto', 'palmUploadArea', 'palmPreview', 'palmPreviewImg', 'palmPreviewInfo');
+                this.setupFileUpload('leftHandPhoto', 'leftHandUploadArea', 'leftHandPreview', 'leftHandPreviewImg', 'leftHandPreviewInfo');
+                this.setupFileUpload('rightHandPhoto', 'rightHandUploadArea', 'rightHandPreview', 'rightHandPreviewImg', 'rightHandPreviewInfo');
                 this.setupFileUpload('facePhoto', 'faceUploadArea', 'facePreview', 'facePreviewImg', 'facePreviewInfo');
             }
 
@@ -561,11 +644,16 @@
                 const previewImg = document.getElementById(previewImgId);
                 const previewInfo = document.getElementById(previewInfoId);
 
-                // 点击上传区域触发文件选择
-                uploadArea.addEventListener('click', () => fileInput.click());
-
                 // 文件选择事件
                 fileInput.addEventListener('change', (e) => this.handleFileSelect(e, preview, previewImg, previewInfo));
+                
+                // 点击上传区域触发文件选择（简化版本）
+                uploadArea.addEventListener('click', (e) => {
+                    // 确保点击事件能够正确触发文件选择
+                    if (e.target !== fileInput) {
+                        fileInput.click();
+                    }
+                });
 
                 // 拖拽事件
                 uploadArea.addEventListener('dragover', (e) => {
@@ -619,21 +707,28 @@
                 
                 const formData = new FormData();
                 const birthDateTime = document.getElementById('birthDateTime').value;
-                const palmPhoto = document.getElementById('palmPhoto').files[0];
+                const leftHandPhoto = document.getElementById('leftHandPhoto').files[0];
+                const rightHandPhoto = document.getElementById('rightHandPhoto').files[0];
                 const facePhoto = document.getElementById('facePhoto').files[0];
 
-                // 验证必填字段
-                if (!birthDateTime) {
-                    this.showError('请选择出生日期和时间');
+                // 验证是否有任何输入
+                if (!birthDateTime && !leftHandPhoto && !rightHandPhoto && !facePhoto) {
+                    this.showError('请至少提供出生日期、手相照片或面相照片中的一项');
                     return;
                 }
 
                 // 准备提交数据
-                formData.append('birthDateTime', birthDateTime);
+                if (birthDateTime) {
+                    formData.append('birthDateTime', birthDateTime);
+                }
                 
                 // 添加图片文件（如果存在）
-                if (palmPhoto) {
-                    formData.append('palmPhoto', palmPhoto);
+                if (leftHandPhoto) {
+                    formData.append('leftHandPhoto', leftHandPhoto);
+                }
+                
+                if (rightHandPhoto) {
+                    formData.append('rightHandPhoto', rightHandPhoto);
                 }
                 
                 if (facePhoto) {

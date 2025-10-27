@@ -176,8 +176,13 @@ app.post('/api/fortune/analyze', async (req, res) => {
     if (req.files && req.files.length > 0) {
       req.files.forEach(file => {
         console.log('处理文件:', file.fieldname, file.originalname, file.mimetype);
-        if (file.fieldname === 'palmPhoto' && file.originalname) {
-          formData.append('palmPhoto', file.buffer, {
+        if (file.fieldname === 'leftHandPhoto' && file.originalname) {
+          formData.append('leftHandPhoto', file.buffer, {
+            filename: file.originalname,
+            contentType: file.mimetype
+          });
+        } else if (file.fieldname === 'rightHandPhoto' && file.originalname) {
+          formData.append('rightHandPhoto', file.buffer, {
             filename: file.originalname,
             contentType: file.mimetype
           });

@@ -65,17 +65,19 @@ def read_uploaded_file_stream(file: UploadFile) -> bytes:
 
 @router.post("/analyze", response_model=FortuneAnalysisResponse)
 async def analyze_fortune(
-    birthDateTime: str = Form(...),
-    palmPhoto: UploadFile = File(None),
+    birthDateTime: str = Form(None),
+    leftHandPhoto: UploadFile = File(None),
+    rightHandPhoto: UploadFile = File(None),
     facePhoto: UploadFile = File(None)
 ):
     """
     面相手相分析接口
     
     参数:
-    - birthDateTime: 出生日期时间 (YYYY-MM-DD HH:MM)
-    - palmPhoto: 手相照片文件
-    - facePhoto: 面相照片文件
+    - birthDateTime: 出生日期时间 (YYYY-MM-DD HH:MM) - 可选
+    - leftHandPhoto: 左手照片文件 - 可选
+    - rightHandPhoto: 右手照片文件 - 可选
+    - facePhoto: 面相照片文件 - 可选
     
     返回:
     - 相学分析结果
@@ -83,26 +85,50 @@ async def analyze_fortune(
     try:
         user_data = {}
         user_msg = []
-        birth_dt = datetime.strptime(birthDateTime, "%Y-%m-%d %H:%M")
-        if birth_dt:
-            from tools.code_tools import tian_gan_di_zhi
-            tian, gan, di, zhi = tian_gan_di_zhi(int(birth_dt.year),
-                                   int(birth_dt.month),
-                                   int(birth_dt.day),
-                                   int(birth_dt.hour))
-            user_data.update({"bazi": f"年柱{tian}，月柱{gan}，日柱{di}，时柱{zhi}"})
-            user_msg.append("八字信息")
+        
+        # 处理出生日期（如果提供）
+        if birthDateTime:
+            birth_dt = datetime.strptime(birthDateTime, "%Y-%m-%d %H:%M")
+            if birth_dt:
+                from tools.code_tools import tian_gan_di_zhi
+                tian, gan, di, zhi = tian_gan_di_zhi(int(birth_dt.year),
+                                       int(birth_dt.month),
+                                       int(birth_dt.day),
+                                       int(birth_dt.hour))
+                tmp = f"年柱{tian}，月柱{gan}，日柱{di}，时柱{zhi}"
+                user_data.update({"bazi": tmp})
+                user_msg.append(f"八字信息:{tmp}")
 
         import base64
-        if palmPhoto and palmPhoto.filename:
-            hand_image_data = read_uploaded_file_stream(palmPhoto)
-            user_data.update({"hand_image": base64.b64encode(hand_image_data).decode('utf-8')})
-            user_msg.append("手相图片")
+        hand_images = []
+        
+        # 处理左手照片
+        if leftHandPhoto and leftHandPhoto.filename:
+            left_hand_image_data = read_uploaded_file_stream(leftHandPhoto)
+            left_hand_base64 = base64.b64encode(left_hand_image_data).decode('utf-8')
+            hand_images.append({"type": "left", "image": left_hand_base64})
+            user_msg.append("左手照片")
+
+        # 处理右手照片
+        if rightHandPhoto and rightHandPhoto.filename:
+            right_hand_image_data = read_uploaded_file_stream(rightHandPhoto)
+            right_hand_base64 = base64.b64encode(right_hand_image_data).decode('utf-8')
+            hand_images.append({"type": "right", "image": right_hand_base64})
+            user_msg.append("右手照片")
+
+        # 如果有手相照片，添加到用户数据中
+        if hand_images:
+            user_data.update({"hand_images": hand_images})
+            logging.info(f"添加手相照片到用户数据: {len(hand_images)}张照片")
 
         if facePhoto and facePhoto.filename:
             facial_image_data = read_uploaded_file_stream(facePhoto)
             user_data.update({"facial_image": base64.b64encode(facial_image_data).decode('utf-8')})
             user_msg.append("面相图片")
+
+        # 验证至少有一个输入
+        if not user_data:
+            raise HTTPException(status_code=400, detail="请至少提供出生日期、手相照片或面相照片中的一项")
 
         # 调用supervisor_graph进行分析
         from graph.supervisor_graph import SupervisorGraph
@@ -111,7 +137,9 @@ async def analyze_fortune(
         # 执行分析
         analysis_parts = []
         try:
-            async for chunk in supervisor.chat_with_supervisor_stream("fortune_analysis", "、".join(user_msg)):
+            import uuid
+            uuid4 = uuid.uuid4()
+            async for chunk in supervisor.chat_with_supervisor_stream(str(uuid4), "、".join(user_msg)):
                 chunk_analysis = chunk.get("analysis", "")
                 if chunk_analysis:
                     analysis_parts.append(chunk_analysis)
