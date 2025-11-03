@@ -148,7 +148,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`前端服务器运行在 http://localhost:${PORT}`);
-  console.log(`后端API地址: ${BACKEND_URL}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`前端服务器运行在 http://0.0.0.0:${PORT}`);
 });
